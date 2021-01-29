@@ -70,9 +70,9 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     elif is_vac:
         if params_fixed is None:
             params_fixed = [2e5,0.502]
-        learner = SIRD_NN.Learner_Geral(region,SIRD_NN.lossGamma,model,d,params_fixed,s_0,0, i_0, 0, rC_0, rD_0,t0 )
+        learner = SIRD_NN.Learner_Geral(region,SIRD_NN.lossGamma,model,d,params_fixed,s_0,0, i_0, 0, rC_0, rD_0)
     else:
-        learner = SIRD_NN.Learner(region, SIRD_NN.lossGamma, d, s_0, i_0, rC_0, rD_0,t0)
+        learner = SIRD_NN.Learner(region, SIRD_NN.lossGamma, d, s_0, i_0, rC_0, rD_0)
     learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], sl1, sl)
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save

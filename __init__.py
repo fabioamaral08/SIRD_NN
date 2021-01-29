@@ -292,7 +292,7 @@ def run_beta(beta, bias, t):
     xmin = 1e-3
 
     def sig(x):
-        
+        return 1.0 / (1 + np.exp(-x))
 
     def relu(x):
         return np.maximum(x, 0) + xmin
