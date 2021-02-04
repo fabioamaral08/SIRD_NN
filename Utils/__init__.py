@@ -282,7 +282,8 @@ def ERROR_DF(df_data, df_p, r, cols_p=['Infected', 'Recovered', 'Death'],
 
 
 def MAPE(arq_data, arq_prev, file='MAPE.csv', total=False, save=False):
-    df_data = pd.read_csv(arq_data, index_col=False)
+    if arq_data != 'JHU':
+        df_data = pd.read_csv(arq_data, index_col = False)
     df_prev = pd.read_csv(arq_prev)
     if 'Death' not in df_prev.columns:
         df_save = pd.DataFrame(columns=["SP-Subregião", 'MAPE Infectados', 'MAPE  Recuperados'])
@@ -302,7 +303,10 @@ def MAPE(arq_data, arq_prev, file='MAPE.csv', total=False, save=False):
 
     for r in df_prev["SP-Subregião"].unique():
         df_p = df_prev[df_prev["SP-Subregião"] == r]
-        df_d = get_data(df_data, r, is_pred=False)
+        if arq_data != 'JHU':
+            df_d = get_data(df_data,r,is_pred = False)
+        else:
+            df_d = read_global(r)
         if total:
             df_p = df_p[df_p['Used in Train']]
         else:
@@ -418,7 +422,15 @@ def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir=False, df_geral=Non
     df_MAPE.to_csv(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv')
     df_pred = filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, lim=20)
     df_pred = df_pred.drop('Unnamed: 0', axis=1, errors='ignore')
-    df_pred = df_pred.round({'Infected': 0, 'Recovered': 0, 'Death': 0})
+    df_pred = df_pred.round({'Infected': 0,
+                             'Recovered': 0,
+                             'Death': 0,
+                             'Infected (No Vaccine)':0,
+                            'Recovered (No Vaccine)':0,
+                            'Death (No Vaccine)':0,
+                            'Infected (Vaccinated)':0,
+                            'Infected (Non Vaccinated)':0,
+                            'Vaccinated':0})
     df_pred['Data'] = pd.to_datetime(df_pred.Data)
     df_pred.sort_values(by='Data', inplace=True, ascending=True)
     d0 = df_pred.Data.iloc[0]
@@ -426,12 +438,12 @@ def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir=False, df_geral=Non
     df_pred.set_index(idx.values, inplace=True)
     df_pred['Data'] = df_pred['Data'].dt.strftime('%m/%d/%Y')
     esp = len(df_pred[~df_pred['Used in Train']])
-    if esp <= crop:
-        crop = None
     if crop is not None:
-        cut = esp - crop
-        df_pred = df_pred.iloc[:-cut]
-        esp = crop
+        if esp > crop:
+            cut = esp-crop
+            df_pred = df_pred.iloc[:-cut]
+            df_pred_min = df_pred_min.iloc[:-cut]
+            df_pred_max = df_pred_max.iloc[:-cut]
     if df_geral is not None:
         df_geral = df_geral.append(df_pred)
         return df_geral
@@ -641,7 +653,8 @@ def plot_mult(df_data, df_pred, r, pasta, pasta_graph, fs=24, **kwargs):
                 f'{pasta_save}/Confirmed/{r}_Conf.png', idx, leg=leg, **kwargs)
 
 
-def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_dir=False, is_SIR = False):
+def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_dir=False, is_SIR = False, crop = 10,  dia_ini = 10,
+                dia_fim = 30):
     if case == 'state':
         if pasta is None:
             pasta = f'Run_States/{dtime}'
@@ -657,7 +670,8 @@ def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_d
         if regs == None:
             regs = df_data['SP-Subregião'].unique().tolist() + ['São Paulo (Estado)']
     elif case == 'JHU':
-        pasta = f'Run_JHU/{dtime}'
+        if pasta is None:
+            pasta = f'Run_JHU/{dtime}'
         file_d  ='JHU'
         if regs ==  None:
             regs = ['Canada', 'Germany']
@@ -667,13 +681,12 @@ def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_d
             df_data = df_data.append(df_aux)
             
 
-    dia_ini = 10
-    dia_fim = 30
+  
     df_geral = pd.DataFrame()
     if unify:
         for r in regs:
             df_geral = unifica(dia_ini, dia_fim, prev, r, pasta=pasta, df_geral=df_geral, inner_dir=inner_dir,
-                               file1=file_d)
+                               file1=file_d, crop = crop)
         date_str = df_geral[df_geral['Used in Train']]['Data'].iloc[-1]
         dtime = datetime.strptime(date_str, '%m/%d/%Y')
         pred_day = dtime.strftime('%Y-%b-%d')

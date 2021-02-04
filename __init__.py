@@ -336,7 +336,7 @@ class Learner_Geral(object):
         new_index = self.extend_index(data.index, self.predict_range)
         size = len(new_index)
 
-        IVP = solve_ivp(self.model, [0, size], val_0,
+        IVP = solve_ivp(self.model, [old_s-1, size], val_0,
                         t_eval=np.arange(old_s-1, size, 1), vectorized=True, method='LSODA', args = (self.params_calibration, self.params_fixed, self.net))
         return new_index[old_s-1:], IVP
 
