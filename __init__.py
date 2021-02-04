@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 from datetime import timedelta, datetime
-
+import SIRD_NN.Rede as Rede
 
 class Learner(object):
     def __init__(self, country, loss, predict_range, s_0, i_0, rC_0, rD_0):
@@ -19,15 +19,21 @@ class Learner(object):
         self.rC_0 = rC_0 / self.norm_fat
         self.rD_0 = rD_0 / self.norm_fat
 
-        # Parameters creation
-        b1, b2 = createLay([1, 10, 1])
-        params = np.empty((0,))
-        for i in range(len(b1)):
-            params = np.concatenate([params, b1[i].reshape(-1, )])
-        for i in range(len(b2)):
-            params = np.concatenate([params, b2[i].reshape(-1, )])
+        self.net = Rede.Rede()
 
-        self.params = np.concatenate([params, np.array([1 / 14, .001]).reshape(-1, )])
+        # Parameters creation
+        self.net.add_lay(num_in = 1, num_out = 10,bias = True, activation='Sigmoid')
+        # self.net.add_lay(num_out = 10,bias = True, activation='Sigmoid')
+        # self.net.add_lay(num_out = 10,bias = True, activation='Sigmoid')        
+        # self.net.add_lay(num_out = 10,bias = True, activation='Sigmoid')
+        # self.net.add_lay(num_out = 10,bias = True, activation='Sigmoid')        
+        # self.net.add_lay(num_out = 10,bias = True, activation='Sigmoid')
+
+        self.net.add_lay(num_out = 1,bias = False, activation='Relu_min')
+
+
+        
+        self.params = np.concatenate([self.net.get_weights(), np.array([1 / 14, .001]).reshape(-1, )])
         self.worked = False
     def extend_index(self, index, new_size):
         values = index.values
@@ -48,12 +54,12 @@ class Learner(object):
                 values = np.append(values, datetime.strftime(current, '%m/%d/%Y'))
             return values
 
-    def predict(self, b1, b2, gamma, gammaD, data, s_0, i_0, r_0, rD_0):
+    def predict(self, gamma, gammaD, data, s_0, i_0, r_0, rD_0):
         new_index = self.extend_index(data.index, self.predict_range)
         size = len(new_index)
         
         def SIRD(t, y):
-            beta = run_beta(b1, b2, t)
+            beta = self.net.run(t)
             S = y[0]
             I = y[1]
             return [-beta * S * I, beta * S * I - (gamma + gammaD) * I, gamma * I, gammaD * I]
@@ -63,6 +69,7 @@ class Learner(object):
         return new_index, IVP
 
     def train(self, recovered, death, data, ini, fim):
+        print(self.params)
         recovered = (recovered) / self.norm_fat
         death = death / self.norm_fat
         data = data / self.norm_fat
@@ -81,7 +88,7 @@ class Learner(object):
             'finite_diff_rel_step': None}
 
             optimalGamma = minimize(self.loss, self.params,
-                                    args=(data, recovered, death, self.s_0, self.i_0, self.rC_0, self.rD_0),
+                                    args=(data, recovered, death, self.s_0, self.i_0, self.rC_0, self.rD_0, self.net),
                                     method='L-BFGS-B', tol=1e-13, options = options_lbfgsb)
             eps /= 10
             worked = optimalGamma.success
@@ -89,12 +96,14 @@ class Learner(object):
                 break
         self.worked = optimalGamma.success
         self.params = optimalGamma.x
+        print(self.params)
+        p = self.params[:-2]
+        self.net.set_weights(p)
 
     def save_results(self, data):
-        b1, b2 = unpack_lay(self.params[:-2])
         gamma, gammaD = [self.params[-2], self.params[-1]]
 
-        pred_res = self.predict(b1, b2, gamma, gammaD, data,
+        pred_res = self.predict(gamma, gammaD, data,
                                  self.s_0, self.i_0, self.rC_0, self.rD_0)
         new_index, prediction = pred_res
         pred_inf = prediction.y[1] * self.norm_fat
@@ -102,11 +111,9 @@ class Learner(object):
         pred_death = prediction.y[3] * self.norm_fat
 
         is_train = np.arange(len(new_index)) < len(data)
-        betas = []
-        for t in range(len(new_index)):
-            betas.append(run_beta(b1, b2, t)[0][0])
+        betas = self.net.run(prediction.t)
         # Save CSV:
-        betas = np.array(betas)
+        betas = np.array(betas).flatten()
         lethality = pred_death / (pred_inf + pred_rec + pred_death)
         Rt = betas / (gamma + gammaD) * (1 - prediction.y[1] - prediction.y[2] - prediction.y[3])
         df_save = pd.DataFrame({'Data': new_index,
@@ -136,15 +143,14 @@ class Learner_SIR(object):
         self.i_0 = i_0 / self.norm_fat
         self.rC_0 = rC_0 / self.norm_fat
 
+        self.net = Rede.Rede()
         # Parameters creation
-        b1, b2 = createLay([1, 10, 1])
-        params = np.empty((0,))
-        for i in range(len(b1)):
-            params = np.concatenate([params, b1[i].reshape(-1, )])
-        for i in range(len(b2)):
-            params = np.concatenate([params, b2[i].reshape(-1, )])
+        self.net.add_lay(num_in = 1, num_out = 10,bias = True, activation='Sigmoid')
+        self.net.add_lay(num_out = 1,bias = False, activation='Relu_min')
 
-        self.params = np.concatenate([params, np.array([1 / 14]).reshape(-1, )])
+
+
+        self.params = np.concatenate([self.net.get_weights(), np.array([1 / 14]).reshape(-1, )])
 
     def extend_index(self, index, new_size):
         values = index.values
@@ -165,12 +171,12 @@ class Learner_SIR(object):
                 values = np.append(values, datetime.strftime(current, '%m/%d/%Y'))
             return values
 
-    def predict(self, b1, b2, gamma, data, s_0, i_0, r_0):
+    def predict(self, gamma, data, s_0, i_0, r_0):
         new_index = self.extend_index(data.index, self.predict_range)
         size = len(new_index)
 
         def SIR(t, y):
-            beta = run_beta(b1, b2, t)
+            beta = self.net.run(t)
             S = y[0]
             I = y[1]
             return [-beta * S * I, beta * S * I - (gamma) * I, gamma * I]
@@ -184,27 +190,24 @@ class Learner_SIR(object):
         data = data / self.norm_fat
 
         optimalGamma = minimize(self.loss, self.params,
-                                args=(data, recovered, death, self.s_0, self.i_0, self.rC_0),
+                                args=(data, recovered, death, self.s_0, self.i_0, self.rC_0, self.net),
                                 method='L-BFGS-B', tol=1e-13)
 
         self.params = optimalGamma.x
-
+        self.net.set_weights(self.params[:-1])
     def save_results(self, data):
-        b1, b2 = unpack_lay(self.params[:-1])
         gamma = self.params[-1]
 
-        pred_res = self.predict(b1, b2, gamma, data,
+        pred_res = self.predict(gamma, data,
                                  self.s_0, self.i_0, self.rC_0)
         new_index, prediction = pred_res
         pred_inf = prediction.y[1] * self.norm_fat
         pred_rec = prediction.y[2] * self.norm_fat
 
         is_train = np.arange(len(new_index)) < len(data)
-        betas = []
-        for t in range(len(new_index)):
-            betas.append(run_beta(b1, b2, t)[0][0])
+        betas = self.net.run(prediction.t)
         # Save CSV:
-        betas = np.array(betas)
+        betas = np.array(betas).flatten
         Rt = betas / (gamma) * (1 - prediction.y[1] - prediction.y[2])
         df_save = pd.DataFrame({'Data': new_index,
                                 'SP-Subregião': self.country,
@@ -218,43 +221,44 @@ class Learner_SIR(object):
 
 
 # BETA REDE - GAMMA E GAMMA_D
-def lossGamma(point, data, recovered, death, s_0, i_0, r_0, rD_0):
+def lossGamma(point, data, recovered, death, s_0, i_0, r_0, rD_0, net):
     size = len(data)
     gamma, gammaD = [point[-2], point[-1]]
-    b1, b2 = unpack_lay(point[:-2])
-
+    p = point[:-2]
+    net.set_weights(p)
     def SIR(t, y):
-        beta = run_beta(b1, b2, t)
+        beta = net.run(t).flatten()[0]
         S = y[0]
         I = y[1]
         return [-beta * S * I, beta * S * I - (gamma + gammaD) * I, gamma * I, gammaD * I]
 
     solution = solve_ivp(SIR, [0, size], [s_0, i_0, r_0, rD_0],
                          t_eval=np.arange(0, size, 1), vectorized=True, method='LSODA')
-
+    
     try:
         l1 = (np.mean(((np.log(solution.y[1]) - np.log(data.astype('float32')))) ** 2))
         l2 = (np.mean(((np.log(solution.y[2]) - np.log(recovered.astype('float32')))) ** 2))
         l3 = (np.mean(((np.log(solution.y[3]) - np.log(death.astype('float32')))) ** 2))
-    except:
 
+    except:
+        
         l1 = 0
         l2 = 0
         l3 = 0
         pass
-
     l = l1 + l2 + l3
+    
     
     return l
 
     # BETA REDE - GAMMA
-def lossSIR(point, data, recovered, death, s_0, i_0, r_0):
+def lossSIR(point, data, recovered, death, s_0, i_0, r_0, net):
     size = len(data)
     gamma = point[-1]
-    b1, b2 = unpack_lay(point[:-1])
-
+    net.set_weights(point[:-1])
+    
     def SIR(t, y):
-        beta = run_beta(b1, b2, t)
+        beta = net.run(t)
         S = y[0]
         I = y[1]
         return [-beta * S * I, beta * S * I - (gamma) * I, gamma * I]
@@ -276,42 +280,6 @@ def lossSIR(point, data, recovered, death, s_0, i_0, r_0):
     return l
 
 
-def createLay(lay):
-    beta = []
-    bias = []
-    for i in range(len(lay) - 1):
-        n = np.zeros((lay[i], lay[i + 1]))
-        beta.append(n)
-        bias.append(np.ones((1, lay[i + 1])))
-    return beta, bias
-
-
-def run_beta(beta, bias, t):
-    x = np.array([t])
-    x = x.reshape((x.flatten().shape[0], 1))
-    xmin = 1e-3
-
-    def sig(x):
-        
-
-    def relu(x):
-        return np.maximum(x, 0) + xmin
-
-    for i in range(len(beta) - 1):
-        x = sig(np.dot(x, beta[i]) + bias[i])
-    x = relu(np.dot(x, beta[-1]))
-    return x
-
-
-def unpack_lay(param, nn=10):
-    b = param[:-1].reshape((3, nn))[0:2, :]
-    bias = param[:-1].reshape((3, nn))[-1, :]
-
-    beta = [b[0].reshape((1, -1)), b[1].reshape((1, -1)).T]
-    bias = [bias, param[-2]]
-    return beta, bias
-
-
 class Learner_Geral(object):
     def __init__(self, country, loss, model, predict_range, p, *val_0, **kargs):
         self.country = country
@@ -324,24 +292,23 @@ class Learner_Geral(object):
         p[0] = p[0]/self.norm_fat
         self.params_fixed = p
 
+
         if 'cols' not in kargs.keys():
             kargs['cols'] = ['Susceptible', 'Infected', 'Recovered', 'Deaths']
-        for i,v in enumerate(val_0):
+        for v in val_0:
             v = v/self.norm_fat
             self.val_0.append(v)
 
-        # Parameters creation
-        b1, b2 = createLay([1, 10, 1])
-        params = np.empty((0,))
-        for i in range(len(b1)):
-            params = np.concatenate([params, b1[i].reshape(-1, )])
-        for i in range(len(b2)):
-            params = np.concatenate([params, b2[i].reshape(-1, )])
-        self.params_calibration = params
+
+
+        
         if len(val_0) == 6:
             self.SIRD = Learner(country, loss, predict_range, val_0[0], val_0[2] + val_0[3], val_0[4], val_0[5])
         else:
             self.SIRD = Learner(country, loss, predict_range, val_0[0], val_0[2], val_0[3], val_0[4])
+        
+        self.net = self.SIRD.net
+        self.params_calibration = self.SIRD.params
         self.pred_ini = np.zeros((len(val_0),))
         
 
@@ -370,23 +337,23 @@ class Learner_Geral(object):
         size = len(new_index)
 
         IVP = solve_ivp(self.model, [0, size], val_0,
-                        t_eval=np.arange(old_s-1, size, 1), vectorized=True, method='LSODA', args = (self.params_calibration, self.params_fixed))
+                        t_eval=np.arange(old_s-1, size, 1), vectorized=True, method='LSODA', args = (self.params_calibration, self.params_fixed, self.net))
         return new_index[old_s-1:], IVP
 
     def train(self, recovered, death, inf, ini, fim):
-
+        
         self.SIRD.train(recovered, death, inf, ini, fim)
         recovered = recovered / self.norm_fat
         death     = death / self.norm_fat
         inf     = inf / self.norm_fat
-
+        
         s0  = 1 - (inf[-1] + recovered[-1] + death[-1])
         self.pred_ini = [s0,0, inf[-1], 0, recovered[-1], death[-1]]
 
         self.params_calibration = self.SIRD.params
+        self.net.set_weights(self.params_calibration[:-2])
 
     def save_results(self, data):
-        b1, b2 = unpack_lay(self.params_calibration[:-2])
         gamma, gammaD = [self.params_calibration[-2], self.params_calibration[-1]]
         
         pred_res = self.predict(data, self.pred_ini)
@@ -395,8 +362,8 @@ class Learner_Geral(object):
         betas = []
         offset = len(data)-1
         for t in range(len(new_index)):
-            betas.append(run_beta(b1, b2, t + offset)[0][0])
-        betas = np.array(betas)
+            betas.append(self.net.run(t + offset))
+        betas = np.array(betas).flatten()
         
         df_SIRD = self.SIRD.save_results(data)
         df_SIRD = df_SIRD.rename(columns={'Infected': f'Infected (No Vaccine)',
@@ -441,7 +408,7 @@ class Learner_Geral(object):
         df_save = Utils.sort_data(df_save)
         return df_save
 
-def SVIIRD(t,y, params_calibration, params_fixed):
+def SVIIRD(t,y, params_calibration, params_fixed, net):
     """
     SIRD model: vaccination adpt.
 
@@ -466,8 +433,8 @@ def SVIIRD(t,y, params_calibration, params_fixed):
     #Parameters
     gamma_r, gamma_d = params_calibration[-2:]
     vac, theta_v= params_fixed
-    net, bias = unpack_lay(params_calibration[:-2])
-    beta = run_beta(net, bias, t)
+    net.set_weights(params_calibration[:-2])
+    beta = net.run(t)
     S,V,Is, Iv, _, _ = y
     I = Is + Iv
 
@@ -498,7 +465,7 @@ def lossSVIIRD(point, data, val_0, param_fixed, model = SVIIRD, var_idx = (2,3,4
     """
     size = len(data)
     solution = solve_ivp(model, [0, size], val_0,
-                         t_eval=np.arange(0, size, 1), vectorized=True, method='LSODA', args=(point,param_fixed))
+                         t_eval=np.arange(0, size, 1), vectorized=True, method='LSODA', args=(point,param_fixed, net))
     try:
         l = 0
         for i in var_idx:
@@ -509,7 +476,7 @@ def lossSVIIRD(point, data, val_0, param_fixed, model = SVIIRD, var_idx = (2,3,4
     return l
 
 
-def SVIRD(t,y, params_calibration, params_fixed):
+def SVIRD(t,y, params_calibration, params_fixed, net):
     """
     SIRD model: vaccination adpt.
 
@@ -533,8 +500,8 @@ def SVIRD(t,y, params_calibration, params_fixed):
     #Parameters
     gamma_r, gamma_d = params_calibration[-2:]
     vac, theta_v = params_fixed
-    net, bias = unpack_lay(params_calibration[:-2])
-    beta = run_beta(net, bias, t)
+    net.set_weights(params_calibration[:-2])
+    beta = net.run(t)
     S,V,I, _, _ = y
 
     
@@ -547,7 +514,7 @@ def SVIRD(t,y, params_calibration, params_fixed):
     return [dS, dV, dI, dR,dD]
 
 
-def SVIIRD_tetteh(t,y, params_calibration, params_fixed):
+def SVIIRD_tetteh(t,y, params_calibration, params_fixed,net):
     """
     SIRD model: vaccination adpt.
 
@@ -572,8 +539,8 @@ def SVIIRD_tetteh(t,y, params_calibration, params_fixed):
     #Parameters
     gamma_r, gamma_d = params_calibration[-2:]
     vac, theta_v= params_fixed
-    net, bias = unpack_lay(params_calibration[:-2])
-    beta = run_beta(net, bias, t)
+    net.set_weights(params_calibration[:-2])
+    beta = net.run(t)
     S,V,Is, Iv, _, _ = y
     I = Is + Iv
     # medRxvi doi: https://doi.org/10.1101/2020.12.22.20248693; (Adp.)
