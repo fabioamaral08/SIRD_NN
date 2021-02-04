@@ -656,8 +656,16 @@ def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_d
         df_data = pd.read_csv(file_d, index_col=False)
         if regs == None:
             regs = df_data['SP-Subregião'].unique().tolist() + ['São Paulo (Estado)']
-    else:
-        pasta = ''
+    elif case == 'JHU':
+        pasta = f'Run_JHU/{dtime}'
+        file_d  ='JHU'
+        if regs ==  None:
+            regs = ['Canada', 'Germany']
+        df_data = pd.DataFrame()
+        for r in regs:
+            df_aux = read_global(r)
+            df_data = df_data.append(df_aux)
+            
 
     dia_ini = 10
     dia_fim = 30
@@ -673,6 +681,8 @@ def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_d
             dir_res = f'Val-Results-states/{pred_day}/{dia_ini}-{dia_fim}'
         elif case == 'subregion':
             dir_res = f'Val-Results/{pred_day}/{dia_ini}-{dia_fim}'
+        elif case == 'JHU':
+            dir_res = f'Val-Results-JHU/{pred_day}/{dia_ini}-{dia_fim}' 
         if not os.path.isdir(dir_res):
             os.makedirs(dir_res, exist_ok=True)
         if os.path.isfile(f'{dir_res}/pred_all.csv'):
@@ -689,6 +699,8 @@ def run_unifica(dtime, case, regs=None,prev = 0, unify=True, pasta=None, inner_d
             dir_res = f'Val-Results-states/{pred_day}/{dia_ini}-{dia_fim}'
         elif case == 'subregion':
             dir_res = f'Val-Results/{pred_day}/{dia_ini}-{dia_fim}'
+        elif case == 'JHU':
+            dir_res = f'Val-Results-JHU/{pred_day}/{dia_ini}-{dia_fim}' 
 
     df_att = pd.DataFrame()
     for r in regs:
