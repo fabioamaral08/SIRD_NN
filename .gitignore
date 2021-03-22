@@ -130,3 +130,7 @@ dmypy.json
 
 # Sensitive data
 .ssh/
+
+# Bkup
+
+Trash/
