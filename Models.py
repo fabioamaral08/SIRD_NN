@@ -109,8 +109,8 @@ class SIRD(Model):
 
     def get_params(self, paramns, other_params):
         d = {}
-        d['Gamma_d'] = paramns[-1]
-        d['Gamma_r'] = paramns[-2]
+        d['Gamma_Rec'] = paramns[-2]
+        d['Gamma_Death'] = paramns[-1]
         return d
     
     def model(self, t,y, param_calibration, net, other_param=None):
@@ -223,8 +223,8 @@ class SVIRD_1D(Model):
     def get_params(self, paramns, other_param):
         d = {}
         vac, theta = other_param 
-        d['Gamma_Death'] = paramns[-1]
         d['Gamma_Rec'] = paramns[-2]
+        d['Gamma_Death'] = paramns[-1]
         d['theta(t)'] = theta
         d['Vacciantion Rate'] = vac
         return d
@@ -292,8 +292,8 @@ class SVIRD_1Di(Model):
     def get_params(self, paramns, other_param):
         d = {}
         vac, theta, _ = other_param 
-        d['Gamma_Death'] = paramns[-1]
         d['Gamma_Rec'] = paramns[-2]
+        d['Gamma_Death'] = paramns[-1]
         d['theta(t)'] = theta
         d['Vacciantion Rate'] = vac
         return d
@@ -367,8 +367,8 @@ class SVIRD_2D(Model):
     def get_params(self, paramns, other_param):
         d = {}
         vac1, vac2 , theta1, theta2 = other_param
-        d['Gamma_Death'] = paramns[-1]
         d['Gamma_Rec'] = paramns[-2]
+        d['Gamma_Death'] = paramns[-1]
         d['theta1(t)'] = theta1
         d['theta2(t)'] = theta2
         d['1D Vacciantion Rate'] = vac1
@@ -448,8 +448,8 @@ class SVIRD_2Di(Model):
     def get_params(self, paramns, other_param):
         d = {}
         vac1, vac2 , theta1, theta2 = other_param
-        d['Gamma_Death'] = paramns[-1]
         d['Gamma_Rec'] = paramns[-2]
+        d['Gamma_Death'] = paramns[-1]
         d['theta1(t)'] = theta1
         d['theta2(t)'] = theta2
         d['1D Vacciantion Rate'] = vac1
