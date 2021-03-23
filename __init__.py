@@ -106,30 +106,30 @@ class Learner_Geral(object):
         betas = self.net_beta.run(t)
         betas = np.array(betas).flatten()
 
-        sv_dict = {}
-        sv_dict['Data'] = new_index
-        sv_dict['SP-Subregião'] = self.country
+        df_save = pd.DataFrame()
+        df_save['Data'] = new_index
+        df_save.set_index(new_index,inplace=True)
+        df_save['SP-Subregião'] = self.country
         d = self.model.get_params(self.params_calibration, self.other_param)
-        sv_dict.update(d)
+        
 
-        sv_dict['Infected'] = self.model.get_infected(y) * self.norm_fat
-        sv_dict['Recovered'] = self.model.get_rec(y) * self.norm_fat
-        sv_dict['Death'] = self.model.get_death(y) * self.norm_fat
+        df_save['Infected'] = self.model.get_infected(y) * self.norm_fat
+        df_save['Recovered'] = self.model.get_rec(y) * self.norm_fat
+        df_save['Death'] = self.model.get_death(y) * self.norm_fat
         v1 = self.model.get_vac1(y)
         v2 = self.model.get_vac2(y)
         if v1 is not None:
-            sv_dict['Vaccinated (1 Dose)'] = v1 * self.norm_fat
+            df_save['Vaccinated (1 Dose)'] = v1 * self.norm_fat
         if v2 is not None:
-            sv_dict['Vaccinated (2 Dose)'] = v2 * self.norm_fat
+            df_save['Vaccinated (2 Dose)'] = v2 * self.norm_fat
+
+        df_save['Used in Train'] = is_train
+        df_save['beta(t)'] = betas
+        df_save = pd.concat((df_save,pd.DataFrame(d,index=new_index)),1)
+        df_save['Rt'] = self.model.calc_rt(prediction, self.params_calibration, self.other_param, self.net_beta)
         for i, v in enumerate(y):
-            sv_dict[self.model.cols[i]] = v * self.norm_fat
+            df_save[self.model.cols[i]] = v * self.norm_fat
+        df_save['OPTM_Result'] = self.worked
 
-        sv_dict['beta(t)'] = betas
-        sv_dict['Rt'] = self.model.calc_rt(prediction, self.params_calibration, self.other_param, self.net_beta)
-        sv_dict['Used in Train'] = is_train
-        sv_dict['OPTM_Result'] = self.worked
-        
-
-        df_save = pd.DataFrame(sv_dict, index = new_index)
         df_save = Utils.sort_data(df_save)
         return df_save

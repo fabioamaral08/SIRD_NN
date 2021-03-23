@@ -49,6 +49,7 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     ini = ini[ ["Data", "At", "Rt", "Óbitos", 'Confirmados']]
     ini = sort_data(ini)
     ini = ini.set_index(ini['Data'])
+    
     countday = np.arange(0,len(ini))
     ini['Count Day'] = countday
 
@@ -64,7 +65,6 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     rC_0 = recovered_pp.iloc[sl1]
     rD_0 = death_pp.iloc[sl1]
     s_0 = pop - conf
-
     if is_SIR:
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
@@ -76,7 +76,7 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     return learner, df_save
 
 def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
-                min_casos=0, model = SIRD_NN.SVIIRRD, dose = False, **kargs):
+                min_casos=0, model = Mod.SVIRD_1D, dose = False, intermed = False,**kargs):
 
     """
         region: str
@@ -136,21 +136,31 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
     else:
         v1_0 = vac1.iloc[sl1]
 
-    vi1_0 = vac1.iloc[sl1-20]
-    v1 = v1_0 - vi1_0
-    vi1 = v1_0 - v1
-    vi2_0 = vac2.iloc[sl1-20]
-    v2 = v2_0 - vi2_0
-    vi2 = v2_0 - v2
+
+    if intermed:
+        vi1_0 = vac1.iloc[sl1-20]
+        v1 = v1_0 - vi1_0
+        vi1 = v1_0 - v1
+        vi2_0 = vac2.iloc[sl1-20]
+        v2 = v2_0 - vi2_0
+        vi2 = v2_0 - v2
 
     s_0 = pop - conf
 
     if dose:
-        learner = SIRD_NN.Learner_VAC2D(region,SIRD_NN.lossSVIIRRD_2D,model,d,s_0,vi1,v1,vi2,v2, i_0,0,0, rC_0,0,0, rD_0, **kargs)
-        learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl],  vac2[sl1:sl], sl1, sl)
+        if intermed:
+            val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
+        else:
+            val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
     else:
-        learner = SIRD_NN.Learner_VAC(region,SIRD_NN.lossSVIIRRD,model,d,s_0,vi1,v1, i_0,0, rC_0,0, rD_0, **kargs)
-        learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], sl1, sl)
+        if intermed:
+            val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
+        else:
+            val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
+
+    learner = SIRD_NN.Learner_Geral(region, model, d, *val_0, **kargs)
+    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], vac2[sl1:sl], sl1, sl)
+    
     df_save = learner.save_results(data_pp[sl1:sl])
     
     return learner, df_save, data_pp[sl1:sl]
@@ -752,6 +762,22 @@ def plot_mult(df_data, df_pred,r,pasta,pasta_graph,fs = 24,**kwargs):
     for df in df_p:
         plt_df.append(df[['Infected', 'Recovered', 'Death']].sum(axis=1))
     plot_unique(plt_df, df_d,'Confirmed (Real data)',f'Accumulated Confirmed - {title}',fs,f'{pasta_save}/Confirmed\\{r}_Conf.png',idx, leg = leg, **kwargs)
+
+def eval_ivp(df,interval,y0, method = 'LSODA'):
+    def sird(t,y,df):
+        t = int(np.rint(t))
+        beta = df['beta(t)'].iloc[t]
+        gamma_d = df['gamma_Death'].iloc[t]
+        gamma_r = df['gamma_Rec'].iloc[t]
+        S,I,R,D = y
+        dS = -I * beta * S
+        dI =  I * beta * S - I*(gamma_d + gamma_r)
+        dR =  I * gamma_r
+        dD =  I * gamma_d
+        return [dS, dI, dR,dD]
+    IVP = solve_ivp(sird,interval, y0,
+                        t_eval=np.arange(interval[0], interval[1]+1, 1), vectorized=False, method=method, args = ([df]))
+    return IVP
 
 def run_ivp(df,reg,dc):
     df = df.drop('Unnamed: 0', axis=1, errors='ignore')
