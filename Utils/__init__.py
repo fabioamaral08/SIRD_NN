@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 from datetime import timedelta, datetime
 
-def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
-                min_casos=0, is_SIR = False, model = Mod.SIRD):
 
+def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
+                min_casos=0, is_SIR=False, model=Mod.SIRD):
     """
         region: str
             Name of the region/counry/city
@@ -31,7 +31,7 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
                 - 'Data': Date of the data
             the rows should be sorted by date (column 'Data')
         step: int
-            prediction range (in days) after the last training day data. 
+            prediction range (in days) after the last training day data.
             Default: 14
         mAvg: boolean
             Use the moving average to smooth the data
@@ -44,13 +44,13 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
             default: False
     """
     pop = get_pop(region, dc)
-    
-    ini = get_data(dt,region, is_pred = False)
-    ini = ini[ ["Data", "At", "Rt", "Óbitos", 'Confirmados']]
+
+    ini = get_data(dt, region, is_pred=False)
+    ini = ini[["Data", "At", "Rt", "Óbitos", 'Confirmados']]
     ini = sort_data(ini)
     ini = ini.set_index(ini['Data'])
-    
-    countday = np.arange(0,len(ini))
+
+    countday = np.arange(0, len(ini))
     ini['Count Day'] = countday
 
     if mAvg:
@@ -69,15 +69,16 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
         val_0 = [s_0, i_0, rC_0, rD_0]
-    learner = SIRD_NN.Learner_Geral(region, model, d,*val_0 , params = [])
-    #recovered, death, inf,vac1, vac2,
-    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl],0,0, sl1, sl)
+    learner = SIRD_NN.Learner_Geral(region, model, d, *val_0, params=[])
+    # recovered, death, inf,vac1, vac2,
+    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
+                  data_pp[sl1:sl], 0, 0, sl1, sl)
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save
 
-def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
-                min_casos=0, model = Mod.SVIRD_1D, dose = False, intermed = False,**kargs):
 
+def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
+                min_casos=0, model=Mod.SVIRD_1D, dose=False, intermed=False, rec=False, **kargs):
     """
         region: str
             Name of the region/counry/city
@@ -96,7 +97,7 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
                 - 'Data': Date of the data
             the rows should be sorted by date (column 'Data')
         step: int
-            prediction range (in days) after the last training day data. 
+            prediction range (in days) after the last training day data.
             Default: 14
         mAvg: boolean
             Use the moving average to smooth the data
@@ -107,57 +108,99 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
 
     """
     pop = get_pop(region, dc)
-    
-    ini = get_data(dt,region, is_pred = False)
-    ini = ini[ ["Data", "At", "Rt", "Óbitos", 'Confirmados','Vac1','Vac2']]
+
+    ini = get_data(dt, region, is_pred=False)
+    ini = ini[["Data", "At", "Rt", "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2']]
     ini = sort_data(ini)
     ini = ini.set_index(ini['Data'])
-    countday = np.arange(0,len(ini))
+    countday = np.arange(0, len(ini))
     ini['Count Day'] = countday
 
     if mAvg:
-        ini = movingAvg(ini, 7, ["Data", "At", "Rt", "Óbitos", 'Confirmados','Vac1','Vac2'])
-        
+        ini = movingAvg(ini, 7, ["Data", "At", "Rt",
+                        "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2'])
 
     recovered_pp = ini["Rt"]
     death_pp = ini["Óbitos"]
     data_pp = ini["At"]
-    vac1 = ini['Vac1']
-    vac2 = ini['Vac2']
+    vac1 = ini['Vac 1']
+    vac2 = ini['Vac 2']
     conf = ini['Confirmados'].iloc[sl1]
     d = sl - sl1 + step
     i_0 = data_pp.iloc[sl1]
     rC_0 = recovered_pp.iloc[sl1]
     rD_0 = death_pp.iloc[sl1]
 
+    s_0 = pop - conf
     v2_0 = vac2.iloc[sl1]
     if dose:
-        v1_0 = vac1.iloc[sl1] - v2_0
+        if intermed:
+            vi2 = vac2.iloc[sl1-20]
+            vi1 = vac1.iloc[sl1-20] - vi2 
+            v2 = v2_0 - vi2
+            v1 = vac1.iloc[sl1] - vi1 - vi2 - v2
+            if rec:
+                _,_, theta1,theta2 = kargs['params']
+                v1,im1 = [v1*(1-theta1), v1*theta1]
+                v2,im2 = [v2*(1-theta2), v2*theta2]
+                val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
+            else:
+                val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
+        else:
+            v1_0 = vac1.iloc[sl1] - v2_0
+            if rec:
+                _,_, theta1,theta2 = kargs['params']
+                v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
+                v2_0,im2 = [v2_0*(1-theta2), v2_0*theta2]
+                val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
+            else:
+                val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
     else:
         v1_0 = vac1.iloc[sl1]
-
-
-    if intermed:
-        vi1_0 = vac1.iloc[sl1-20]
-        v1 = v1_0 - vi1_0
-        vi1 = v1_0 - v1
-        vi2_0 = vac2.iloc[sl1-20]
-        v2 = v2_0 - vi2_0
-        vi2 = v2_0 - v2
-
-    s_0 = pop - conf
-
-    if dose:
         if intermed:
-            val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
+            vi1 = vac1.iloc[sl1-20]
+            v1 = v1_0 - vi1
+            if rec:
+                _,theta1,_ = kargs['params']
+                v1,im1 = [v1*(1-theta1), v1*theta1]
+                val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0,im1]
+            else:
+                val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
         else:
-            val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
-    else:
-        if intermed:
-            val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
-        else:
-            val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
+            if rec:
+                _,theta1 = kargs['params']
+                v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
+                val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0,im1]
+            else:
+                val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
 
+
+
+
+
+    # if dose:
+    #     if intermed:
+    #         if rec:
+                
+    #         else:
+    #             val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
+    #     else:
+    #         if rec:
+    #             val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0,0,0]
+    #         else:
+    #             val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
+    # else:
+    #     if intermed:
+    #         if rec:
+    #             val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0,0]
+    #         else:
+    #             val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
+    #     else:
+    #         if rec:
+    #             val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0,0]
+    #         else:
+    #             val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
+    
     learner = SIRD_NN.Learner_Geral(region, model, d, *val_0, **kargs)
     learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], vac2[sl1:sl], sl1, sl)
     
@@ -176,6 +219,12 @@ def get_pop(region, dc):
     return pop
 
 
+def calc_vacRate(vac):
+    vac = vac[1:].values - vac[:-1].values
+    vac = vac[vac>0]
+    vacR = np.mean(vac)
+    return vacR
+
 
 def atualiza_dados(sheet_page = 'Data_subregions'):
     scope = ['https://spreadsheets.google.com/feeds',
@@ -187,8 +236,9 @@ def atualiza_dados(sheet_page = 'Data_subregions'):
     sheet =  client.open('dados')
     d = sheet.worksheet(sheet_page)
     df = pd.DataFrame(d.get_all_records())
-    df.loc[:,'Data'] = pd.to_datetime(df.Data)
-    df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
+    if 'Data' in df.columns:
+        df.loc[:,'Data'] = pd.to_datetime(df.Data)
+        df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
     df.to_csv(f"data\\dados - {sheet_page}.csv")
 
 def translate(r):
@@ -216,12 +266,12 @@ def translate(r):
         return r
 
 def read_global(region):
-    #read files
+    # read files
     df_c = pd.read_csv('JHU/time_series_covid19_confirmed_global.csv')
     df_d = pd.read_csv('JHU/time_series_covid19_deaths_global.csv')
     df_r = pd.read_csv('JHU/time_series_covid19_recovered_global.csv')
     
-    #get data from country
+    # get data from country
     df_c = df_c[df_c['Country/Region'] == region ]
     df_d = df_d[df_d['Country/Region'] == region ]
     df_r = df_r[df_r['Country/Region'] == region ]
@@ -260,7 +310,7 @@ def read_global(region):
     rec =  df_r.iloc[4:].values.flatten()
     infec = conf - death - rec
 
-    #create dataframe
+    # create dataframe
     df = pd.DataFrame(data = {
         'SP-Subregião':region,
         'Data':data,
@@ -440,13 +490,16 @@ def cluster(region,prev,pasta, lim = None,coef_I = 1, coef_D = 0, coef_R = 0, pe
         grupos[f'{Dia}'] = g
     return grupos
 
-def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1, coef_D = 1, coef_R = 1, lim = None,return_total = False):
+def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1, coef_D = 1, coef_R = 1, lim = None,return_total = False, dir_sufix=None):
     g = cluster(region,prev, coef_I = coef_I, coef_D = coef_D, coef_R = coef_R, lim = lim, pasta = pasta)
     df_g1 = pd.DataFrame()   
     df_data = pd.read_csv("data\\dados - Data_subregions.csv")
     for dLen in range(dia_ini,dia_fim+1):
         if inner_dir:
-            file = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+            if dir_sufix is None:
+                file = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+            else:
+                file = f'{pasta}/{region}/{dir_sufix}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
         else:        
             file = f'{pasta}/{region}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
         if not os.path.exists(file):
@@ -471,13 +524,16 @@ def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1,
     return df_mean,df_min,df_max
 
 def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir = False, df_geral = None,
-            crop = 10,file1 = f'data/dados - Data_subregions.csv', MM = False):
+            crop = 10,file1 = f'data/dados - Data_subregions.csv', MM = False, dir_sufix=None):
     
     df_MAPE = pd.DataFrame()
     
     for dLen in range(dia_ini,dia_fim+1):
         if inner_dir:
-            file2 = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+            if dir_sufix is None:
+                file2 = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+            else:
+                file2 = f'{pasta}/{region}/{dir_sufix}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
         else:        
             file2 = f'{pasta}/{region}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
         if not os.path.exists(file2):
@@ -491,9 +547,9 @@ def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir = False, df_geral =
             df_MAPE1 = df_MAPE1.set_index(pd.Index([dLen]))
     
         df_MAPE = df_MAPE.append(df_MAPE1)
-
+    print(file2)
     df_MAPE.to_csv(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv')
-    df_pred,df_pred_min, df_pred_max  = filter_results(region,dia_ini,dia_fim, prev, pasta, inner_dir, lim = 50)
+    df_pred,df_pred_min, df_pred_max  = filter_results(region,dia_ini,dia_fim, prev, pasta, inner_dir, lim = 50, dir_sufix=dir_sufix)
     
     df_pred = df_pred.drop('Unnamed: 0', axis=1,errors ='ignore')
     df_pred = df_pred.round({'Infected':0, 'Recovered':0, 'Death':0})
@@ -585,7 +641,7 @@ def plot_unique(df_avg, df_d,col_d,title,fs,savefile,idx,esp=None,is_rt = False,
         leg = kwargs['leg']
         for i,df in enumerate(df_avg):
             df = pd.DataFrame({leg[i]:df[:]})
-            idx_a = idx.intersection(df.index)
+            idx_a = idx.intersection(df_d.index)
             df.set_index(idx_a)
             df.plot(ax=ax,lw=2)
             
@@ -654,7 +710,6 @@ def plot(df_data, df_pred,r,pasta,pasta_graph,fs = 24,T = None, **kwargs):
         df_d.loc[:,'Rt'] = rec
         df_d.loc[:,'At'] = inf
     
-    idx = df_p['Data']
     df_conf = df_p[['Infected', 'Recovered', 'Death']].sum(axis=1)
     perday = np.zeros((len(df_conf),))
     perday[0] = np.nan
@@ -663,6 +718,7 @@ def plot(df_data, df_pred,r,pasta,pasta_graph,fs = 24,T = None, **kwargs):
     df_pA = df_p[~df_p['Used in Train']]
     esp = len(df_pA)
     title =  translate(r)
+    idx = df_p['Data']
     df_d.set_index('Data',inplace = True)
     idx_d = df_d.index
     idx_d = idx_d.intersection(idx)
@@ -728,11 +784,14 @@ def plot_mult(df_data, df_pred,r,pasta,pasta_graph,fs = 24,**kwargs):
         df_d = df_d.groupby(['Data'], as_index=False).sum()
         df_p = df_p.groupby(['Data'], as_index=False).sum()
         df_p.loc[:,'Rt'] = df_p['Rt']/len(df_p['Rt'])
-    idx = df_p[0]['Data']
-    
+    idx = df_p[0].set_index(df_p[0]['Data']).index
+    print(df_p)
     title =  translate(r)
-    df_d = df_d.set_index('Data')
-    df_d = df_d.loc[idx].rename(columns = {'At':f'Active Cases (Real data)',
+    
+    df_d.set_index('Data',inplace = True)
+    idx_d = df_d.index
+    idx_d = idx_d.intersection(idx)
+    df_d = df_d.loc[idx_d].rename(columns = {'At':f'Active Cases (Real data)',
                                            'Rt':'Recovered Cases (Real data)',
                                            'Óbitos':'Deceased (Real data)',
                                            'Confirmados': 'Confirmed (Real data)'})
@@ -812,9 +871,12 @@ def run_ivp(df,reg,dc):
 
 
 
-def run_unifica(dtime,case, regs = None, unify = True, crop = 10, MM = False, dia_ini = 10, dia_fim = 30, rerun = False):
+def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = False,
+                dia_ini = 10, dia_fim = 30, rerun = False,save_sufix='',
+                pasta=None, inner_dir=False, is_SIR=False, dir_sufix=None):
     if case == 'state':
-        pasta = f'Run_States/{dtime}'
+        if pasta is None:
+            pasta = f'Run_States/{dtime}'
         dc = pd.read_csv('data/dados - states.csv')
         file_d = f'data/dados - Data_states.csv'
         df_data = pd.read_csv(file_d, index_col = False)
@@ -823,20 +885,23 @@ def run_unifica(dtime,case, regs = None, unify = True, crop = 10, MM = False, di
     elif case == 'subregion':
 
         dc = pd.read_csv('data/dados - subregions.csv')
-        pasta = f'Run_Semanal/{dtime}'
+        if pasta is None:
+            pasta = f'Run_Semanal/{dtime}'
         file_d = f'data/dados - Data_subregions.csv'
         df_data = pd.read_csv(file_d, index_col = False)
         if regs ==  None:
             regs = df_data['SP-Subregião'].unique().tolist() + ['São Paulo (Estado)']
     elif case == 'city':
         dc = pd.read_csv('data/dados - Cidades.csv')
-        pasta = f'Run_City/{dtime}'
+        if pasta is None:
+            pasta = f'Run_City/{dtime}'
         file_d = f'data/dados - Data_cidades.csv'
         df_data = pd.read_csv(file_d, index_col = False)
         if regs ==  None:
             regs = df_data['SP-Subregião'].unique().tolist() 
     elif case == 'JHU':
-        pasta = f'Run_JHU/{dtime}'
+        if pasta is None:
+            pasta = f'Run_JHU/{dtime}'
         file_d  ='JHU'
         if regs ==  None:
             regs = ['Canada', 'Germany']
@@ -846,14 +911,13 @@ def run_unifica(dtime,case, regs = None, unify = True, crop = 10, MM = False, di
             df_data = df_data.append(df_aux)
             
 
-    prev = 0
     df_geral = pd.DataFrame()
     df_geral_min = pd.DataFrame()
     df_geral_max = pd.DataFrame()
     if unify:
         for r in regs:
             [df_,df_min,df_max] = unifica(dia_ini, dia_fim,prev, r, pasta = pasta,df_geral = None, crop = crop,
-                               inner_dir = False, file1=file_d, MM = MM)
+                               inner_dir = inner_dir, file1=file_d, MM = MM, dir_sufix=dir_sufix)
             
             if rerun:
                 df_ = run_ivp(df_,r,dc)
@@ -865,10 +929,10 @@ def run_unifica(dtime,case, regs = None, unify = True, crop = 10, MM = False, di
             df_geral_max = df_geral_max.append(df_max)
             
             
-            
+        
         date_str = df_geral[df_geral['Used in Train']]['Data'].iloc[-1]
         dtime = datetime.strptime(date_str,'%m/%d/%Y')
-        pred_day = dtime.strftime('%Y-%b-%d')
+        pred_day = dtime.strftime('%Y-%b-%d')+save_sufix
         print(pred_day)
         if case == 'state':
             dir_res = f'Val-Results-states/{pred_day}/{dia_ini}-{dia_fim}'
