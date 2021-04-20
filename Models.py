@@ -123,7 +123,7 @@ class SIRD(Model):
         # theta = 0.52
         # theta2 = 0.98
         S,I,_,_ = y
- 
+
         dS = -beta * S * I
         dI =  beta * S * I - (gamma_r + gamma_d) * I
         dR = gamma_r * I
@@ -435,14 +435,14 @@ class SVIRD_2Di(Model):
     
     def calc_rt(self, sol, params_calibration, other_param, net):
         gamma, gammaD = params_calibration[-2:]
-        _, _, theta1, theta2 = other_param
+        _, _, theta1, theta2, _ = other_param
         t = sol.t
         betas = net.run(t)
         betas = np.array(betas).flatten()
-        S = 1 -  np.sum(sol.y[2:],axis=0).flatten()
+        S =  np.sum(sol.y[:2],axis=0).flatten()
         V1 = (1-theta1) * (sol.y[2] + sol.y[3])
         V2 = (1-theta2) * sol.y[4]
-        rt = betas / (gamma + gammaD) * (S + V1 + V2)
+        rt = betas * ( S/(gamma + gammaD) + (V1 + V2) / (gamma) ) 
         return rt
     
     def get_vac1(self,y):
@@ -452,20 +452,22 @@ class SVIRD_2Di(Model):
         return y[3] + y[4] + y[7] + y[10]
     def get_params(self, paramns, other_param):
         d = {}
-        vac1, vac2 , theta1, theta2 = other_param
+        vac1, vac2 , theta1, theta2, alpha = other_param
         d['Gamma_Rec'] = paramns[-2]
         d['Gamma_Death'] = paramns[-1]
         d['theta1(t)'] = theta1
         d['theta2(t)'] = theta2
         d['1D Vacciantion Rate'] = vac1
         d['2D Vacciantion Rate'] = vac2
+        d['Effectiveness Delay'] = alpha
+        
         return d
 
     
     def model(self, t,y, param_calibration, net, other_param):
         #Parameters
         gamma_r, gamma_d = param_calibration[-2:]
-        vac1, vac2, theta, theta2 = other_param
+        vac1, vac2, theta, theta2, alpha = other_param
         n = net.get_num_param()
         net.set_weights(param_calibration[:n])
         beta = net.run(t)
@@ -477,16 +479,16 @@ class SVIRD_2Di(Model):
         #Function
 
         dS = -vac1 * S - beta * I * S                                                               # Susceptible
-        dV1i = vac1 * S - beta * I * V1i - 1/20 * V1i                                               # 1 Dose 
-        dV1 =  1/20 * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
-        dV2i =  vac2 * V1 - 1/20 * V2i  - beta * (1-theta) * I * V2i                                # 2 Dose
-        sV2 = 1/20 * V2i - beta * (1-theta2) * I * V2                                               # effective 2 Dose
+        dV1i = vac1 * S - beta * I * V1i - alpha * V1i                                              # 1 Dose 
+        dV1 = alpha * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
+        dV2i = vac2 * V1 - alpha * V2i  - beta * (1-theta) * I * V2i                                # 2 Dose
+        sV2 = alpha * V2i - beta * (1-theta2) * I * V2                                              # effective 2 Dose
         dIs = beta * I * S  - (gamma_r + gamma_d) * Is                                              # Not vaccinated Infected
         dIv1 = beta * (1-theta) * I * V1 + beta * I * V1i  - (gamma_r) * Iv1                        # Infected 1 Dose
         dIv2 = beta * (1-theta) * I * V2i + beta * (1-theta2) * I * V2 - gamma_r * Iv2              # Infected 2 Dose
         dRs = gamma_r * Is - Rs * vac1                                                              # Recovered S
         dRv1 = gamma_r * Iv1 + Rs * vac1 - Rv1 * vac2                                               # Recovered Iv1
-        dRv2 = gamma_r * Iv2 + Rv1 * vac2                                                           # Recovered iv2
+        dRv2 = gamma_r * Iv2 + Rv1 * vac2                                                           # Recovered Iv2
         dD = gamma_d * (Is)                                                                         # Deceased
         return [dS,dV1i,dV1,dV2i,sV2,dIs,dIv1,dIv2,dRs,dRv1,dRv2,dD]
 

@@ -9,10 +9,10 @@ import os
 import numpy as np
 import pandas as pd
 from datetime import timedelta, datetime
-
+from scipy.stats.mstats import hmean, gmean
 
 def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
-                min_casos=0, is_SIR=False, model=Mod.SIRD):
+                min_casos=0, is_SIR=False, model=Mod.SIRD, is_semanal=False):
     """
         region: str
             Name of the region/counry/city
@@ -50,6 +50,12 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     ini = sort_data(ini)
     ini = ini.set_index(ini['Data'])
 
+    if is_semanal:
+        ini.index = pd.to_datetime(ini.index)
+        ini = ini.resample('W').mean()
+        ini.index = ini.index.strftime('%m/%d/%Y')
+        ini['Data'] = ini.index
+
     countday = np.arange(0, len(ini))
     ini['Count Day'] = countday
 
@@ -69,10 +75,10 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
         val_0 = [s_0, i_0, rC_0, rD_0]
-    learner = SIRD_NN.Learner_Geral(region, model, d, *val_0, params=[])
+    learner = SIRD_NN.Learner_Geral(region, model, d,is_semanal, *val_0, params=[])
     # recovered, death, inf,vac1, vac2,
     learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
-                  data_pp[sl1:sl], 0, 0, sl1, sl)
+                  data_pp[sl1:sl], 0, 0)
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save
 
@@ -175,34 +181,8 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
                 val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
 
 
-
-
-
-    # if dose:
-    #     if intermed:
-    #         if rec:
-                
-    #         else:
-    #             val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
-    #     else:
-    #         if rec:
-    #             val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0,0,0]
-    #         else:
-    #             val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
-    # else:
-    #     if intermed:
-    #         if rec:
-    #             val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0,0]
-    #         else:
-    #             val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
-    #     else:
-    #         if rec:
-    #             val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0,0]
-    #         else:
-    #             val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
-    
-    learner = SIRD_NN.Learner_Geral(region, model, d, *val_0, **kargs)
-    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], vac2[sl1:sl], sl1, sl)
+    learner = SIRD_NN.Learner_Geral(region, model, d,False, *val_0, **kargs)
+    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], vac2[sl1:sl])
     
     df_save = learner.save_results(data_pp[sl1:sl])
     
@@ -211,6 +191,9 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
 def get_pop(region, dc):
     if region == 'São Paulo (Estado)' or region == 'Brasil':
         pop = dc['Habitantes (2019)'].sum()
+    elif 'Cidades' in dc.columns and region in dc['Cidades'].unique():
+        c = dc[dc["Cidades"] == region]
+        pop = c["Habitantes (2019)"].values[0]
     elif region in dc['Região'].unique():
         pop = dc[dc['Região'] == region]['Habitantes (2019)'].sum()
     else:
@@ -218,6 +201,8 @@ def get_pop(region, dc):
         pop = c["Habitantes (2019)"].values[0]
     return pop
 
+def nearest(items, pivot):
+    return min([i for i in items], key=lambda x: abs(datetime.strptime(x, '%m/%d/%Y') - datetime.strptime(pivot, '%m/%d/%Y')))
 
 def calc_vacRate(vac):
     vac = vac[1:].values - vac[:-1].values
@@ -330,6 +315,8 @@ def get_data(df_data,r, is_pred = True):
     dc = pd.read_csv(f'data/dados - Agrupamento.csv')
     if r in df_data["SP-Subregião"].unique():
         df_d = df_data[df_data["SP-Subregião"] == r]
+    elif ('Cidades' in df_data.columns) and (r in df_data["Cidades"].unique()):
+        df_d = df_data[df_data["Cidades"] == r]
     elif r in dc['Região'].unique():
         est = dc[dc['Região'] == r]['SP-Subregião'].unique()
         df_d = pd.DataFrame()
@@ -355,6 +342,8 @@ def sort_data(df, col = 'Data'):
     return df
 
 
+def non_num_mean(df):
+        return np.mean(df) if isinstance(df[0], (int, float)) else df[0]
 
 def diff_mean(df_vals):
     df_mean = df_vals.mean(1)
@@ -378,7 +367,7 @@ def movingAvg(df, n, cols = None):
     if cols is None:
         return df.rolling(window=n).mean()
     else:
-        df.loc[:, 1:] = df.loc[:, cols].rolling(window=n).mean().copy()
+        df.iloc[:, 1:] = df[cols].rolling(window=n).mean().copy()
         return df
 
 def run_mape(df_d, df_p):
@@ -433,7 +422,7 @@ def ERROR_DF(df_data, df_p, r, cols_p = ['Infected', 'Recovered', 'Death'],
     er_T = error(df_d['Total'], df_p['Total'])
     return er_I, er_R, er_D,er_T
 
-def MAPE(arq_data, arq_prev, file = 'MAPE.csv', total = False, save = False, MM = False):
+def MAPE(arq_data, arq_prev, file = 'MAPE.csv', total = False, save = False, MM = False, is_weekly=False):
     if arq_data != 'JHU':
         df_data = pd.read_csv(arq_data, index_col = False)
     df_prev = pd.read_csv(arq_prev)
@@ -452,6 +441,8 @@ def MAPE(arq_data, arq_prev, file = 'MAPE.csv', total = False, save = False, MM 
         if MM:
 #             df_d = movingAvg(df_d, 7, ["Data", "At", "Rt", "Óbitos", 'Confirmados'])
             pass
+        if is_weekly:
+            df_d = turn_weekly(df_d)
         df_d = df_d[df_d["Data"].isin(df_p["Data"])][["At", "Óbitos", 'Rt','Data']]
         df_p = df_p[df_p["Data"].isin(df_d["Data"])]
         l = len(df_d)
@@ -519,16 +510,17 @@ def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1,
     if return_total or len(df_g1) == 0:
         return df_g1,df_g1,df_g1
     
-    df_mean = df_g1.groupby('Data', as_index=False).mean()
+    df_mean = df_g1.groupby('Data', as_index=False).agg({c:gmean if c not in ['Data','SP-Subregião','Used in Train','beta(t)', 'Gamma_Rec',
+                                                                                'Gamma_Death', 'Rt','OPTM_Result'] else non_num_mean for c in df.columns})
     df_min = df_g1.groupby('Data', as_index=False).min()
     df_max = df_g1.groupby('Data', as_index=False).max()
     
-    df_mean.insert(1,'SP-Subregião', region)
+    # df_mean.insert(1,'SP-Subregião', region)
 
     return df_mean,df_min,df_max
 
 def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir = False, df_geral = None,
-            crop = 10,file1 = f'data/dados - Data_subregions.csv', MM = False, dir_sufix=None):
+            crop = 10,file1 = f'data/dados - Data_subregions.csv', MM = False, dir_sufix=None,is_weekly=False):
     
     df_MAPE = pd.DataFrame()
     
@@ -547,11 +539,10 @@ def unifica(dia_ini, dia_fim, prev, region, pasta, inner_dir = False, df_geral =
                                      'MAPE Recuperados':100.0}, index = [dLen])
             print(f'{file2} - does not exist')
         else:       
-            df_MAPE1 = MAPE(file1, file2,total = True,MM=MM)
+            df_MAPE1 = MAPE(file1, file2,total = True,MM=MM,is_weekly=is_weekly)
             df_MAPE1 = df_MAPE1.set_index(pd.Index([dLen]))
     
         df_MAPE = df_MAPE.append(df_MAPE1)
-    print(file2)
     df_MAPE.to_csv(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv')
     df_pred,df_pred_min, df_pred_max  = filter_results(region,dia_ini,dia_fim, prev, pasta, inner_dir, lim = 50, dir_sufix=dir_sufix)
     
@@ -789,7 +780,6 @@ def plot_mult(df_data, df_pred,r,pasta,pasta_graph,fs = 24,**kwargs):
         df_p = df_p.groupby(['Data'], as_index=False).sum()
         df_p.loc[:,'Rt'] = df_p['Rt']/len(df_p['Rt'])
     idx = df_p[0].set_index(df_p[0]['Data']).index
-    print(df_p)
     title =  translate(r)
     
     df_d.set_index('Data',inplace = True)
@@ -873,18 +863,26 @@ def run_ivp(df,reg,dc):
     df['Rt'] = new_rt
     return df
 
-
+def turn_weekly(df, period='W'):
+    df = df.set_index('Data')
+    df.index = pd.to_datetime(df.index)
+    df = df.resample(period).mean()
+    df.index = df.index.strftime('%m/%d/%Y')
+    df['Data'] = df.index
+    df.index.name=''
+    
+    return df
 
 def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = False,
                 dia_ini = 10, dia_fim = 30, rerun = False,save_sufix='',
-                pasta=None, inner_dir=False, is_SIR=False, dir_sufix=None):
+                pasta=None, inner_dir=False, is_SIR=False, dir_sufix=None, is_weekly=False):
     if case == 'state':
         if pasta is None:
             pasta = f'Run_States/{dtime}'
         dc = pd.read_csv('data/dados - states.csv')
         file_d = f'data/dados - Data_states.csv'
         df_data = pd.read_csv(file_d, index_col = False)
-        if regs == None:
+        if regs is None:
             regs = ['Brasil', 'Norte', 'Nordeste', 'Sul', 'Sudeste', 'Centro-Oeste']
     elif case == 'subregion':
 
@@ -893,7 +891,7 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
             pasta = f'Run_Semanal/{dtime}'
         file_d = f'data/dados - Data_subregions.csv'
         df_data = pd.read_csv(file_d, index_col = False)
-        if regs ==  None:
+        if regs is  None:
             regs = df_data['SP-Subregião'].unique().tolist() + ['São Paulo (Estado)']
     elif case == 'city':
         dc = pd.read_csv('data/dados - Cidades.csv')
@@ -901,27 +899,28 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
             pasta = f'Run_City/{dtime}'
         file_d = f'data/dados - Data_cidades.csv'
         df_data = pd.read_csv(file_d, index_col = False)
-        if regs ==  None:
+        if regs is  None:
             regs = df_data['SP-Subregião'].unique().tolist() 
     elif case == 'JHU':
         if pasta is None:
             pasta = f'Run_JHU/{dtime}'
         file_d  ='JHU'
-        if regs ==  None:
+        if regs is  None:
             regs = ['Canada', 'Germany']
         df_data = pd.DataFrame()
         for r in regs:
             df_aux = read_global(r)
             df_data = df_data.append(df_aux)
-            
+
 
     df_geral = pd.DataFrame()
     df_geral_min = pd.DataFrame()
     df_geral_max = pd.DataFrame()
+    data_cpy = df_data.copy()
     if unify:
         for r in regs:
             [df_,df_min,df_max] = unifica(dia_ini, dia_fim,prev, r, pasta = pasta,df_geral = None, crop = crop,
-                               inner_dir = inner_dir, file1=file_d, MM = MM, dir_sufix=dir_sufix)
+                               inner_dir = inner_dir, file1=file_d, MM = MM, dir_sufix=dir_sufix,is_weekly=is_weekly)
             
             if rerun:
                 df_ = run_ivp(df_,r,dc)
@@ -955,7 +954,8 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         df_geral_max.to_csv(f'{dir_res}/pred_all_max.csv')
         
     else:
-        df_geral = unifica(dia_ini, dia_fim,prev, regs[0], pasta = pasta,df_geral = df_geral, crop = 10, inner_dir = False, file1=file_d)
+
+        df_geral = unifica(dia_ini, dia_fim,prev, regs[0], pasta = pasta,df_geral = df_geral, crop = 10, inner_dir = False, file1=file_d,is_weekly=is_weekly)
         date_str = df_geral[df_geral['Used in Train']]['Data'].iloc[-1]
         dtime = datetime.strptime(date_str,'%m/%d/%Y')
         pred_day = dtime.strftime('%Y-%b-%d')
@@ -982,6 +982,10 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         df_plt = get_data(df_geral_t,r)
         df_plt_min = get_data(df_geral_min,r)
         df_plt_max = get_data(df_geral_max,r)
+        df_data = get_data(data_cpy, r) 
+        if is_weekly:
+            df_data = turn_weekly(df_data)
+            df_data['SP-Subregião']=r
         
         if len(df_plt) == 0:
             continue
