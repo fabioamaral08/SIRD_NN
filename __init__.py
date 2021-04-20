@@ -7,14 +7,17 @@ from datetime import timedelta, datetime
 import SIRD_NN.Rede as Rede
 
 class Learner_Geral(object):
-    def __init__(self, country, model, predict_range, *val_0, **kargs):
+    def __init__(self, country, model, predict_range,is_semanal, *val_0, **kargs):
         self.country = country
         self.loss = model.loss
         self.predict_range = predict_range
 
         self.norm_fat = np.sum(val_0)
         self.val_0 = []
-
+        if is_semanal:
+            self.time_step = 7
+        else:
+            self.time_step = 1
         for v in val_0:
             v = v/self.norm_fat
             self.val_0.append(v)
@@ -34,10 +37,11 @@ class Learner_Geral(object):
     def extend_index(self, index, new_size):
         values = index.values
         current = 0
+        td = timedelta(days=self.time_step)
         try:
             current = datetime.strptime(index[-1], '%m/%d/%Y')
             while len(values) < (new_size):
-                current = current + timedelta(days=1)
+                current = current + td
                 values = np.append(values, datetime.strftime(current, '%m/%d/%Y'))
             return values
 
@@ -46,7 +50,7 @@ class Learner_Geral(object):
                 current = datetime.strptime(index[i], '%d/%m/%Y')
                 values[i] = datetime.strftime(current, '%m/%d/%Y')
             while len(values) < new_size:
-                current = current + timedelta(days=1)
+                current = current + td
                 values = np.append(values, datetime.strftime(current, '%m/%d/%Y'))
             return values
 
@@ -59,7 +63,7 @@ class Learner_Geral(object):
 
         return new_index, IVP
 
-    def train(self, recovered, death, inf,vac1, vac2, ini, fim):
+    def train(self, recovered, death, inf,vac1, vac2):
         recovered = recovered / self.norm_fat
         death     = death / self.norm_fat
         inf     = inf / self.norm_fat
