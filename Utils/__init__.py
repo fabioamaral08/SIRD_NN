@@ -151,6 +151,7 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
                 v2,im2 = [v2*(1-theta2), v2*theta2]
                 val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
             else:
+                vac1[sl1:sl] = vac1[sl1:sl] - vac2[sl1:sl]
                 val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
         else:
             v1_0 = vac1.iloc[sl1] - v2_0
@@ -374,7 +375,7 @@ def run_rmse(df_d, df_p):
 
 def run_nrmse(df_d, df_p,**kwarg):
     rmse = run_rmse(df_d, df_p)
-    med = np.std(df_d)
+    med = np.mean(df_d)
     return rmse/med
 
 def run_mae(df_d, df_p):
@@ -402,12 +403,13 @@ def ERROR_DF(df_data, df_p, r, cols_p = ['Infected', 'Recovered', 'Death'],
     df_d = df_d.loc[idx_d]
     df_p = df_p.loc[idx_d]
     
-
     
-    df_d['Total'] = df_d[cols_d[0:3]].sum(axis=1)
     
-    df_p.loc[:,'Total'] = df_p.sum(axis=1)
-
+    df_d['Total'] = df_d[cols_d[:-1]].sum(axis=1)
+    
+    df_p['Total'] = df_p[cols_p].sum(axis=1)
+    print(df_d)
+    print(df_p)
     l = len(df_d)
     df_d = df_d.set_index(np.arange(l))
     df_p = df_p.set_index(np.arange(l))

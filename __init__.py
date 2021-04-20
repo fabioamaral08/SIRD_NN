@@ -31,7 +31,9 @@ class Learner_Geral(object):
 
         self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 14, .001]).reshape(-1, )])
         self.other_param = kargs['params']
-
+        if 'param_calibration' in kargs.keys():
+            pc = kargs['param_calibration']
+            self.params_calibration = np.concatenate([self.params_calibration, pc])
         
 
     def extend_index(self, index, new_size):

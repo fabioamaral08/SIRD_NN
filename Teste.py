@@ -2,12 +2,13 @@ from SIRD_NN import Models as Mod
 from datetime import datetime
 
 class Teste(object):
-    def __init__(self, regions, is_vac, is_mm, date, effs=[0,0], annotation='', is_dose = True, is_intermed = True, is_rec=False):
+    def __init__(self, regions, is_vac, is_mm, date, effs=[0,0], annotation='', is_dose = True, is_intermed = True, is_rec=False, train_rate=False):
         self.is_vac = is_vac
         self.is_mm = is_mm
         self.regions = regions
         self.date = date
         self.effs = effs
+        self.train_rate = train_rate
 
         if is_vac:
             self.sufixo = '-Vac2Di-'
@@ -37,6 +38,8 @@ class Teste(object):
                 if is_intermed:
                     if is_rec:
                         self.model = Mod.SVIRD_2Di_Rec
+                    elif train_rate:
+                        self.model = Mod.SVIRD_2Di_vacrate
                     else:
                         self.model = Mod.SVIRD_2Di
                 else:
@@ -79,4 +82,4 @@ class Teste(object):
     def configs(self):
 
         return self.dtime, self.pasta, self.is_vac, self.is_mm, self.date, self.effs[0], self.effs[1], self.regions,\
-                self.sufixo, self.model, self.is_dose, self.is_intermed, self.is_rec
+                self.sufixo, self.model, self.is_dose, self.is_intermed, self.is_rec, self.train_rate

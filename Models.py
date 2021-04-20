@@ -446,7 +446,7 @@ class SVIRD_2Di(Model):
         return rt
     
     def get_vac1(self,y):
-        return y[1] + y[2] + y[6] + y[9] + self.get_vac2(y)
+        return y[1] + y[2] + y[6] + y[9] 
     
     def get_vac2(self,y):
         return y[3] + y[4] + y[7] + y[10]
@@ -492,6 +492,92 @@ class SVIRD_2Di(Model):
         dD = gamma_d * (Is)                                                                         # Deceased
         return [dS,dV1i,dV1,dV2i,sV2,dIs,dIv1,dIv2,dRs,dRv1,dRv2,dD]
 
+
+
+class SVIRD_2Di_vacrate(Model):
+    def __init__(self, val_0):
+        cols = ['Susceptible',
+                'Vaccinated 1Di' ,
+                'Vaccinated 1D' ,
+                'Vaccinated 2Di' ,
+                'Vaccinated 2D' ,
+                'Infected (non Vacc)',
+                'Infected (Vacc 1)',
+                'Infected (Vacc 2)',
+                'Recovered (non Vacc)',
+                'Recovered (Vacc 1)', 
+                'Recovered (Vacc 2)', 
+                'Death']
+        super().__init__(val_0, cols)
+
+    
+    def get_infected(self, y):
+        return y[5] + y[6] + y[7]
+    
+    def get_death(self, y):
+        return y[11]
+    
+    def get_rec(self, y):
+        return y[8] + y[9] + y[10]
+    
+    def calc_rt(self, sol, params_calibration, other_param, net):
+        gamma, gammaD,_,_ = params_calibration[-4:]
+        theta1, theta2, _ = other_param
+        t = sol.t
+        betas = net.run(t)
+        betas = np.array(betas).flatten()
+        S =  np.sum(sol.y[:2],axis=0).flatten()
+        V1 = (1-theta1) * (sol.y[2] + sol.y[3])
+        V2 = (1-theta2) * sol.y[4]
+        rt = betas * ( S/(gamma + gammaD) + (V1 + V2) / (gamma) ) 
+        return rt
+    
+    def get_vac1(self,y):
+        return y[1] + y[2] + y[6] + y[9] 
+    
+    def get_vac2(self,y):
+        return y[3] + y[4] + y[7] + y[10]
+    def get_params(self, paramns, other_param):
+        d = {}
+        theta1, theta2, alpha = other_param
+        d['Gamma_Rec'] = paramns[-4]
+        d['Gamma_Death'] = paramns[-3]
+        d['theta1(t)'] = theta1
+        d['theta2(t)'] = theta2
+        d['1D Vacciantion Rate'] = paramns[-2]
+        d['2D Vacciantion Rate'] = paramns[-1]
+        d['Effectiveness Delay'] = alpha
+        
+        return d
+
+    
+    def model(self, t,y, param_calibration, net, other_param):
+        #Parameters
+        gamma_r, gamma_d, vac1, vac2, = param_calibration[-4:]
+        theta, theta2, alpha = other_param
+        n = net.get_num_param()
+        net.set_weights(param_calibration[:n])
+        beta = net.run(t)
+        # theta = 0.52
+        # theta2 = 0.98
+        S,V1i,V1,V2i,V2,Is,Iv1, Iv2, Rs, Rv1, _,_ = y
+        
+        I = Is + Iv1 + Iv2
+        #Function
+
+        dS = -vac1 * S - beta * I * S                                                               # Susceptible
+        dV1i = vac1 * S - beta * I * V1i - alpha * V1i  - vac2 * V1i                                           # 1 Dose 
+        dV1 = alpha * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
+        dV2i = vac2 * V1 + vac2 * V1i - alpha * V2i  - beta * (1-theta) * I * V2i                                # 2 Dose
+        sV2 = alpha * V2i - beta * (1-theta2) * I * V2                                              # effective 2 Dose
+        dIs = beta * I * S  - (gamma_r + gamma_d) * Is                                              # Not vaccinated Infected
+        dIv1 = beta * (1-theta) * I * V1 + beta * I * V1i  - (gamma_r) * Iv1                        # Infected 1 Dose
+        dIv2 = beta * (1-theta) * I * V2i + beta * (1-theta2) * I * V2 - gamma_r * Iv2              # Infected 2 Dose
+        dRs = gamma_r * Is - Rs * vac1                                                              # Recovered S
+        dRv1 = gamma_r * Iv1 + Rs * vac1 - Rv1 * vac2                                               # Recovered Iv1
+        dRv2 = gamma_r * Iv2 + Rv1 * vac2                                                           # Recovered Iv2
+        dD = gamma_d * (Is)                                                                         # Deceased
+        return [dS,dV1i,dV1,dV2i,sV2,dIs,dIv1,dIv2,dRs,dRv1,dRv2,dD]
 ##############################
 ####                      ####
 ####   VACINAÇÃO - REC    ####
