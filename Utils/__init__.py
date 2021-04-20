@@ -226,7 +226,7 @@ def calc_vacRate(vac):
     return vacR
 
 
-def atualiza_dados(sheet_page = 'Data_subregions'):
+def atualiza_dados(sheet_page = 'Data_subregions', pasta=None):
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
@@ -239,7 +239,11 @@ def atualiza_dados(sheet_page = 'Data_subregions'):
     if 'Data' in df.columns:
         df.loc[:,'Data'] = pd.to_datetime(df.Data)
         df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
-    df.to_csv(f"data\\dados - {sheet_page}.csv")
+    if pasta is not None:
+        df.to_csv(f"{pasta}\\dados - {sheet_page}.csv")
+    else:
+        df.to_csv(f"data\\dados - {sheet_page}.csv")
+
 
 def translate(r):
         translator = {
