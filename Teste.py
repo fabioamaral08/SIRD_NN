@@ -1,4 +1,4 @@
-import Models as Mod
+from SIRD_NN import Models as Mod
 from datetime import datetime
 
 class Teste(object):
@@ -13,8 +13,6 @@ class Teste(object):
             self.sufixo = '-Vac2Di-'
         else:
             self.sufixo = '-SIRD-'
-        if is_mm:
-            self.sufixo += '-MM'
         if annotation != '':
             self.sufixo += annotation+'-'
 
@@ -26,6 +24,9 @@ class Teste(object):
         d_str = d.strftime('%Y-%b-%d')
 
         self.dtime += d_str
+        if is_mm:
+            self.sufixo += '-MM'
+            self.dtime += '-MM'
         self.pasta = pasta = f'Run_Teste/{self.dtime}'
 
         self.is_dose = is_dose
