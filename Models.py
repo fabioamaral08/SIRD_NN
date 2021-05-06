@@ -566,9 +566,9 @@ class SVIRD_2Di_vacrate(Model):
         #Function
 
         dS = -vac1 * S - beta * I * S                                                               # Susceptible
-        dV1i = vac1 * S - beta * I * V1i - alpha * V1i  - vac2 * V1i                                           # 1 Dose 
+        dV1i = vac1 * S - beta * I * V1i - alpha * V1i  - vac2 * V1i                                # 1 Dose 
         dV1 = alpha * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
-        dV2i = vac2 * V1 + vac2 * V1i - alpha * V2i  - beta * (1-theta) * I * V2i                                # 2 Dose
+        dV2i = vac2 * V1 + vac2 * V1i - alpha * V2i  - beta * (1-theta) * I * V2i                   # 2 Dose
         sV2 = alpha * V2i - beta * (1-theta2) * I * V2                                              # effective 2 Dose
         dIs = beta * I * S  - (gamma_r + gamma_d) * Is                                              # Not vaccinated Infected
         dIv1 = beta * (1-theta) * I * V1 + beta * I * V1i  - (gamma_r) * Iv1                        # Infected 1 Dose
