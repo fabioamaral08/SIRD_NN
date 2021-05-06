@@ -64,6 +64,7 @@ class Model(metaclass=abc.ABCMeta):
             for i,d in enumerate(model_vars):
                 if d is not None:
                     l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
+            l += np.mean(np.log(np.sum(y,axis=0)**2))
 
 
         except Exception as e: 

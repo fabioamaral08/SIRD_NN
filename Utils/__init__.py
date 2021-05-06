@@ -137,21 +137,21 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
     rC_0 = recovered_pp.iloc[sl1]
     rD_0 = death_pp.iloc[sl1]
 
-    s_0 = pop - conf
+    s_0 = pop - conf - vac1[sl1]
     v2_0 = vac2.iloc[sl1]
     if dose:
         if intermed:
-            vi2 = vac2.iloc[sl1-20]
-            vi1 = vac1.iloc[sl1-20] - vi2 
+            vi2 = np.maximum(0,vac2.iloc[sl1] - vac2.iloc[sl1-20])
+            v1_only = vac1 - vac2
+            vi1 = np.maximum(0,v1_only.iloc[sl1] - v1_only.iloc[sl1-20])
             v2 = v2_0 - vi2
-            v1 = vac1.iloc[sl1] - vi1 - vi2 - v2
+            v1 = v1_only.iloc[sl1] - vi1
             if rec:
                 _,_, theta1,theta2 = kargs['params']
                 v1,im1 = [v1*(1-theta1), v1*theta1]
                 v2,im2 = [v2*(1-theta2), v2*theta2]
                 val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
             else:
-                vac1[sl1:sl] = vac1[sl1:sl] - vac2[sl1:sl]
                 val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
         else:
             v1_0 = vac1.iloc[sl1] - v2_0
@@ -183,7 +183,7 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
 
 
     learner = SIRD_NN.Learner_Geral(region, model, d,False, *val_0, **kargs)
-    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], vac1[sl1:sl], vac2[sl1:sl])
+    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], v1_only[sl1:sl], vac2[sl1:sl])
     
     df_save = learner.save_results(data_pp[sl1:sl])
     
@@ -226,9 +226,9 @@ def atualiza_dados(sheet_page = 'Data_subregions', pasta=None):
         df.loc[:,'Data'] = pd.to_datetime(df.Data)
         df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
     if pasta is not None:
-        df.to_csv(f"{pasta}\\dados - {sheet_page}.csv")
+        df.to_csv(f"{pasta}/dados - {sheet_page}.csv")
     else:
-        df.to_csv(f"data\\dados - {sheet_page}.csv")
+        df.to_csv(f"data/dados - {sheet_page}.csv")
 
 
 def translate(r):
