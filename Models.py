@@ -34,7 +34,7 @@ class Model(metaclass=abc.ABCMeta):
         pass
 
     
-    def loss(self, point, data, net, params):
+    def loss(self, point, data, net, params, nf):
         """
         Parameters:
             point: array, list,iterable
@@ -63,7 +63,8 @@ class Model(metaclass=abc.ABCMeta):
             l = 0
             for i,d in enumerate(model_vars):
                 if d is not None:
-                    l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
+                    # l += (np.mean(((np.log(d*nf +1) - np.log(data[i][t].astype('float32') * nf + 1 ) )) ** 2))
+                    l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
 
 
         except Exception as e: 
@@ -97,7 +98,7 @@ class SIRD(Model):
         t = sol.t
         betas = net.run(t)
         betas = np.array(betas).flatten()
-        S = 1 -  np.sum(sol.y[1:],axis=0).flatten()
+        S = sol.y[0]
         rt = betas/(gamma + gammaD) * S
         return rt
     
@@ -566,9 +567,9 @@ class SVIRD_2Di_vacrate(Model):
         #Function
 
         dS = -vac1 * S - beta * I * S                                                               # Susceptible
-        dV1i = vac1 * S - beta * I * V1i - alpha * V1i  - vac2 * V1i                                # 1 Dose 
+        dV1i = vac1 * S - beta * I * V1i - alpha * V1i                                              # 1 Dose 
         dV1 = alpha * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
-        dV2i = vac2 * V1 + vac2 * V1i - alpha * V2i  - beta * (1-theta) * I * V2i                   # 2 Dose
+        dV2i = vac2 * V1  - alpha * V2i  - beta * (1-theta) * I * V2i                               # 2 Dose
         sV2 = alpha * V2i - beta * (1-theta2) * I * V2                                              # effective 2 Dose
         dIs = beta * I * S  - (gamma_r + gamma_d) * Is                                              # Not vaccinated Infected
         dIv1 = beta * (1-theta) * I * V1 + beta * I * V1i  - (gamma_r) * Iv1                        # Infected 1 Dose
