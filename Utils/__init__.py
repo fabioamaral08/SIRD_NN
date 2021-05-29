@@ -75,9 +75,14 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
         val_0 = [s_0, i_0, rC_0, rD_0]
-    learner = SIRD_NN.Learner_Geral(region, model, d,is_semanal, *val_0, params=[])
+    learner = SIRD_NN.Learner_Geral(region, model, d,is_semanal, *val_0, params=[], is_SIR =is_SIR)
     # recovered, death, inf,vac1, vac2,
-    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
+    if is_SIR:
+        # rec_data = 
+        learner.train(recovered_pp[sl1:sl]+death_pp[sl1:sl],0,
+                  data_pp[sl1:sl], 0, 0)
+    else:
+        learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
                   data_pp[sl1:sl], 0, 0)
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save
@@ -232,23 +237,23 @@ def get_from_sheets(sheet_page = 'Data_subregions', sheets='dados'):
         df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
     return df
 
-def atualiza_dados(sheet_page = 'Data_subregions', pasta=None):
+def atualiza_dados(sheet_page = 'Data_subregions', pasta=None, dataset='dados'):
     scope = ['https://spreadsheets.google.com/feeds',
              'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
     client = gspread.authorize(creds)
 
 
-    sheet =  client.open('dados')
+    sheet =  client.open(dataset)
     d = sheet.worksheet(sheet_page)
     df = pd.DataFrame(d.get_all_records())
     if 'Data' in df.columns:
         df.loc[:,'Data'] = pd.to_datetime(df.Data)
         df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
     if pasta is not None:
-        df.to_csv(f"{pasta}/dados - {sheet_page}.csv")
+        df.to_csv(f"{pasta}/{dataset} - {sheet_page}.csv")
     else:
-        df.to_csv(f"data/dados - {sheet_page}.csv")
+        df.to_csv(f"data/{dataset} - {sheet_page}.csv")
 
 def translate(r):
         translator = {

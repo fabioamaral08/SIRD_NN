@@ -34,7 +34,7 @@ class Model(metaclass=abc.ABCMeta):
         pass
 
     
-    def loss(self, point, data, net, params, nf):
+    def loss(self, point, data, net, params):
         """
         Parameters:
             point: array, list,iterable
@@ -135,7 +135,7 @@ class SIRD(Model):
 class SIR(Model):
     def __init__(self, val_0):
         cols = ['Susceptible', 'Infected', 'Recovered']
-        super().__init__( val_0, cols)
+        super().__init__(val_0, cols)
 
     
     def get_infected(self, y):
@@ -169,7 +169,7 @@ class SIR(Model):
     
     def model(self, t,y, param_calibration, net, other_param=None):
         #Parameters
-        gamma_r = param_calibration[-1:]
+        gamma_r = param_calibration[-1]
         
         n = net.get_num_param()
         net.set_weights(param_calibration[:n])
