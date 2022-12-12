@@ -1,6 +1,8 @@
 import abc
+from locale import normalize
 import numpy as np
 from scipy.integrate import solve_ivp
+import traceback
 class Model(metaclass=abc.ABCMeta):
     @classmethod
     def __init__(self, val_0, cols=[]):
@@ -32,9 +34,10 @@ class Model(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def model(self, t,y, param_calibration, net, other_param):
         pass
-
     
-    def loss(self, point, data, net, params):
+    
+    
+    def loss(self, point, data, net, params, nf):
         """
         Parameters:
             point: array, list,iterable
@@ -58,17 +61,35 @@ class Model(metaclass=abc.ABCMeta):
             D = self.get_death(y)
             V1 = self.get_vac1(y)
             V2 = self.get_vac2(y)
+
+            def normalize_out(v1,v2, eps = 1e-5):
+                var = np.var(v1)
+                e = np.mean(v1)
+
+                v1_n = (v1 - e)/np.sqrt(var + eps)
+                v2_n = (v2 - e)/np.sqrt(var + eps)
+                return v1_n, v2_n
             
             model_vars = [I,V1, V2, R, D]
             l = 0
             for i,d in enumerate(model_vars):
                 if d is not None:
-                    l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
-            l += np.mean(np.log(np.sum(y,axis=0)**2))
-
+                    do_n, di_n = normalize_out( data[i][t], d)
+                    # print(do_n)
+                    # print()
+                    # print(di_n)
+                    # print()
+                    # print()
+                    # l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
+                    # l += np.sqrt(np.mean(((d - data[i][t].astype('float32') )/data[i][t].astype('float32') ) ** 2))
+                    l += np.mean( (di_n - do_n )**2) 
+            # l += np.mean(np.log(np.sum(y,axis=0)**2)) +  .5* np.linalg.norm(params)**2
+            l += np.mean((1 - np.sum(y,axis=0))**2) + np.linalg.norm(params)**2
+            # print(l)
 
         except Exception as e: 
             print(str(e))
+            traceback.print_exc()
         # print(l)
         return l
 
@@ -354,15 +375,15 @@ class SVIRD_2D(Model):
         return y[6] + y[7] + y[8]
     
     def calc_rt(self, sol, params_calibration, other_param, net):
-        gamma, gammaD = params_calibration[-2:]
-        _, _, theta1, theta2 = other_param
+        gamma_r, gamma_d, _, _, = params_calibration[-4:]
+        theta1, theta2,_ = other_param
         t = sol.t
         betas = net.run(t)
         betas = np.array(betas).flatten()
         S = 1 -  np.sum(sol.y[1:],axis=0).flatten()
         V1 = (1-theta1) * (sol.y[1])
         V2 = (1-theta2) * sol.y[2]
-        rt = betas / (gamma + gammaD) * (S + V1 + V2)
+        rt = betas / (gamma_r + gamma_d) * (S + V1 + V2)
         return rt
     
     def get_vac1(self,y):
@@ -372,20 +393,20 @@ class SVIRD_2D(Model):
         return y[2] + y[5] + y[8] 
     def get_params(self, paramns, other_param):
         d = {}
-        vac1, vac2 , theta1, theta2 = other_param
-        d['Gamma_Rec'] = paramns[-2]
-        d['Gamma_Death'] = paramns[-1]
+        theta1, theta2, _ = other_param
+        d['Gamma_Rec'] = paramns[-4]
+        d['Gamma_Death'] = paramns[-3]
         d['theta1(t)'] = theta1
         d['theta2(t)'] = theta2
-        d['1D Vacciantion Rate'] = vac1
-        d['2D Vacciantion Rate'] = vac2
+        d['1D Vacciantion Rate'] = paramns[-2]
+        d['2D Vacciantion Rate'] = paramns[-1]
         return d
 
     
     def model(self, t,y, param_calibration, net, other_param):
         #Parameters
-        gamma_r, gamma_d = param_calibration[-2:]
-        vac1, vac2, theta, theta2 = other_param
+        gamma_r, gamma_d, vac1, vac2, = param_calibration[-4:]
+        theta, theta2,_ = other_param
         n = net.get_num_param()
         net.set_weights(param_calibration[:n])
         beta = net.run(t)
@@ -567,9 +588,9 @@ class SVIRD_2Di_vacrate(Model):
         #Function
 
         dS = -vac1 * S - beta * I * S                                                               # Susceptible
-        dV1i = vac1 * S - beta * I * V1i - alpha * V1i  - vac2 * V1i                                           # 1 Dose 
+        dV1i = vac1 * S - beta * I * V1i - alpha * V1i                                              # 1 Dose 
         dV1 = alpha * V1i - beta * (1-theta) * I * V1 - vac2 * V1                                   # effective 1 Dose
-        dV2i = vac2 * V1 + vac2 * V1i - alpha * V2i  - beta * (1-theta) * I * V2i                                # 2 Dose
+        dV2i = vac2 * V1  - alpha * V2i  - beta * (1-theta) * I * V2i                               # 2 Dose
         sV2 = alpha * V2i - beta * (1-theta2) * I * V2                                              # effective 2 Dose
         dIs = beta * I * S  - (gamma_r + gamma_d) * Is                                              # Not vaccinated Infected
         dIv1 = beta * (1-theta) * I * V1 + beta * I * V1i  - (gamma_r) * Iv1                        # Infected 1 Dose
