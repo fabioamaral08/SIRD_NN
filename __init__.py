@@ -4,8 +4,8 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 from datetime import timedelta, datetime
-import Rede
-import Models as Mod
+import SIRD_NN.Rede as Rede
+import SIRD_NN.Models as Mod
 
 class Learner_Geral(object):
     def __init__(self, country, model, predict_range,is_semanal, *val_0, **kargs):
