@@ -245,8 +245,13 @@ def atualiza_dados(sheet_page = 'Data_subregions', pasta=None, dataset='dados'):
     creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
     client = gspread.authorize(creds)
 
+<<<<<<< HEAD
+    sheet =  client.open(dataset)
+    d = sheet.worksheet(sheet_page)
+=======
 
     sheet =  client.open(dataset)
+>>>>>>> d686648968bafab1025d7c62837d94edeb26b205
     d = sheet.worksheet(sheet_page)
     df = pd.DataFrame(d.get_all_records())
     if 'Data' in df.columns:
