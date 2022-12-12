@@ -4,7 +4,8 @@ import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize, Bounds
 from datetime import timedelta, datetime
-import SIRD_NN.Rede as Rede
+import Rede
+import Models as Mod
 
 class Learner_Geral(object):
     def __init__(self, country, model, predict_range,is_semanal, *val_0, **kargs):
@@ -30,7 +31,14 @@ class Learner_Geral(object):
         # self.net_beta.add_lay(num_in = 10, num_out = 10,bias = True, activation='Sigmoid')
         self.net_beta.add_lay(num_out = 1,bias = False, activation='Sigmoid')
 
+<<<<<<< HEAD
         self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 17, .0005]).reshape(-1, )])
+=======
+        if 'is_SIR' in kargs.keys() and kargs['is_SIR']:
+            self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 14]).reshape(-1, )])
+        else:
+            self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 14, .001]).reshape(-1, )])
+>>>>>>> d686648968bafab1025d7c62837d94edeb26b205
         self.other_param = kargs['params']
         if 'param_calibration' in kargs.keys():
             pc = kargs['param_calibration']
@@ -125,10 +133,14 @@ class Learner_Geral(object):
         df_save['SP-Subregião'] = self.country
         d = self.model.get_params(self.params_calibration, self.other_param)
         
+        inf = self.model.get_infected(y)
+        rec = self.model.get_rec(y)
+        death = self.model.get_death(y)
 
-        df_save['Infected'] = self.model.get_infected(y) * self.norm_fat
-        df_save['Recovered'] = self.model.get_rec(y) * self.norm_fat
-        df_save['Death'] = self.model.get_death(y) * self.norm_fat
+        df_save['Infected'] =  inf* self.norm_fat
+        df_save['Recovered'] = rec * self.norm_fat
+        if death is not None:
+            df_save['Death'] =  death* self.norm_fat
         v1 = self.model.get_vac1(y)
         v2 = self.model.get_vac2(y)
         if v1 is not None:

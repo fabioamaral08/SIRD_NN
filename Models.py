@@ -74,6 +74,7 @@ class Model(metaclass=abc.ABCMeta):
             l = 0
             for i,d in enumerate(model_vars):
                 if d is not None:
+<<<<<<< HEAD
                     do_n, di_n = normalize_out( data[i][t], d)
                     # print(do_n)
                     # print()
@@ -86,6 +87,11 @@ class Model(metaclass=abc.ABCMeta):
             # l += np.mean(np.log(np.sum(y,axis=0)**2)) +  .5* np.linalg.norm(params)**2
             l += np.mean((1 - np.sum(y,axis=0))**2) + np.linalg.norm(params)**2
             # print(l)
+=======
+                    # l += (np.mean(((np.log(d*nf +1) - np.log(data[i][t].astype('float32') * nf + 1 ) )) ** 2))
+                    l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
+
+>>>>>>> d686648968bafab1025d7c62837d94edeb26b205
 
         except Exception as e: 
             print(str(e))
@@ -119,7 +125,7 @@ class SIRD(Model):
         t = sol.t
         betas = net.run(t)
         betas = np.array(betas).flatten()
-        S = 1 -  np.sum(sol.y[1:],axis=0).flatten()
+        S = sol.y[0]
         rt = betas/(gamma + gammaD) * S
         return rt
     
@@ -156,7 +162,7 @@ class SIRD(Model):
 class SIR(Model):
     def __init__(self, val_0):
         cols = ['Susceptible', 'Infected', 'Recovered']
-        super().__init__( val_0, cols)
+        super().__init__(val_0, cols)
 
     
     def get_infected(self, y):
@@ -190,7 +196,7 @@ class SIR(Model):
     
     def model(self, t,y, param_calibration, net, other_param=None):
         #Parameters
-        gamma_r = param_calibration[-1:]
+        gamma_r = param_calibration[-1]
         
         n = net.get_num_param()
         net.set_weights(param_calibration[:n])

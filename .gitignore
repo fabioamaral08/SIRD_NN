@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
-Utils/__pycache__
+__pycache__/**
+Utils/__pycache__/**
 *.py[cod]
 *$py.class
 
@@ -130,7 +130,8 @@ dmypy.json
 .pyre/
 
 # Sensitive data
-.ssh/
+.ssh/**
+__pycache__/**
 
 # Bkup
 run_testes.py
