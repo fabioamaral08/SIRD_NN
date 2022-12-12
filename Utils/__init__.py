@@ -62,8 +62,7 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     if mAvg:
         ini = movingAvg(ini, 7, ["Data", "At", "Rt", "Óbitos", 'Confirmados'])
 
-    # date_reset = '12/01/2021'
-    recovered_pp = ini["Rt"] 
+    recovered_pp = ini["Rt"]
     death_pp = ini["Óbitos"]
     data_pp = ini["At"]
     conf = ini['Confirmados'].iloc[sl1]
@@ -71,7 +70,7 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     i_0 = data_pp.iloc[sl1]
     rC_0 = recovered_pp.iloc[sl1]
     rD_0 = death_pp.iloc[sl1]
-    s_0 = pop - conf 
+    s_0 = pop - conf
     if is_SIR:
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
@@ -88,78 +87,6 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save
 
-
-def get_val0_vac(region, dt, dc, sl1, sl, mAvg=False, dose=False, intermed=False, rec=False):
-
-        pop = get_pop(region, dc)
-
-        ini = get_data(dt, region, is_pred=False)
-        ini = ini[["Data", "At", "Rt", "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2']]
-        ini = sort_data(ini)
-        ini = ini.set_index(ini['Data'])
-        countday = np.arange(0, len(ini))
-        ini['Count Day'] = countday
-
-        if mAvg:
-            ini = movingAvg(ini, 7, ["Data", "At", "Rt",
-                            "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2'])
-
-        recovered_pp = ini["Rt"]
-        death_pp = ini["Óbitos"]
-        data_pp = ini["At"]
-        vac1 = ini['Vac 1']
-        vac2 = ini['Vac 2']
-        conf = ini['Confirmados'].iloc[sl1]
-        
-        i_0 = data_pp.iloc[sl1]
-        rC_0 = recovered_pp.iloc[sl1]
-        rD_0 = death_pp.iloc[sl1]
-
-        s_0 = pop - conf - vac1[sl1]
-        v2_0 = vac2.iloc[sl1]
-        if dose:
-            v1_only = vac1 - vac2
-            if intermed:
-                vi2 = np.maximum(0,vac2.iloc[sl1] - vac2.iloc[sl1-20])
-                vi1 = np.maximum(0,v1_only.iloc[sl1] - v1_only.iloc[sl1-20])
-                v2 = v2_0 - vi2
-                v1 = v1_only.iloc[sl1] - vi1
-                if rec:
-                    _,_, theta1,theta2 = kargs['params']
-                    v1,im1 = [v1*(1-theta1), v1*theta1]
-                    v2,im2 = [v2*(1-theta2), v2*theta2]
-                    val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
-                else:
-                    val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
-            else:
-                v1_0 = vac1.iloc[sl1] - v2_0
-                if rec:
-                    _,_, theta1,theta2 = kargs['params']
-                    v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
-                    v2_0,im2 = [v2_0*(1-theta2), v2_0*theta2]
-                    val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
-                else:
-                    val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
-        else:
-            v1_0 = vac1.iloc[sl1]
-            v1_only = vac1
-            if intermed:
-                vi1 = vac1.iloc[sl1-20]
-                v1 = v1_0 - vi1
-                if rec:
-                    _,theta1,_ = kargs['params']
-                    v1,im1 = [v1*(1-theta1), v1*theta1]
-                    val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0,im1]
-                else:
-                    val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
-            else:
-                if rec:
-                    _,theta1 = kargs['params']
-                    v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
-                    val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0,im1]
-                else:
-                    val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
-        return val_0, recovered_pp, death_pp, data_pp, vac2, v1_only
 
 def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
                 min_casos=0, model=Mod.SVIRD_1D, dose=False, intermed=False, rec=False, **kargs):
@@ -191,9 +118,75 @@ def run_vac(region, sl1, sl, dc, dt, step=14, mAvg=False,
             default: 0
 
     """
+    pop = get_pop(region, dc)
 
-    val_0, recovered_pp, death_pp, data_pp, vac2, v1_only = get_val0_vac(region, dt, dc, sl1, sl, mAvg, dose, intermed, rec)
+    ini = get_data(dt, region, is_pred=False)
+    ini = ini[["Data", "At", "Rt", "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2']]
+    ini = sort_data(ini)
+    ini = ini.set_index(ini['Data'])
+    countday = np.arange(0, len(ini))
+    ini['Count Day'] = countday
+
+    if mAvg:
+        ini = movingAvg(ini, 7, ["Data", "At", "Rt",
+                        "Óbitos", 'Confirmados', 'Vac 1', 'Vac 2'])
+
+    recovered_pp = ini["Rt"]
+    death_pp = ini["Óbitos"]
+    data_pp = ini["At"]
+    vac1 = ini['Vac 1']
+    vac2 = ini['Vac 2']
+    conf = ini['Confirmados'].iloc[sl1]
     d = sl - sl1 + step
+    i_0 = data_pp.iloc[sl1]
+    rC_0 = recovered_pp.iloc[sl1]
+    rD_0 = death_pp.iloc[sl1]
+
+    s_0 = pop - conf - vac1[sl1]
+    v2_0 = vac2.iloc[sl1]
+    if dose:
+        if intermed:
+            vi2 = np.maximum(0,vac2.iloc[sl1] - vac2.iloc[sl1-20])
+            v1_only = vac1 - vac2
+            vi1 = np.maximum(0,v1_only.iloc[sl1] - v1_only.iloc[sl1-20])
+            v2 = v2_0 - vi2
+            v1 = v1_only.iloc[sl1] - vi1
+            if rec:
+                _,_, theta1,theta2 = kargs['params']
+                v1,im1 = [v1*(1-theta1), v1*theta1]
+                v2,im2 = [v2*(1-theta2), v2*theta2]
+                val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
+            else:
+                val_0 = [s_0,vi1,v1,vi2,v2,i_0,0,0,rC_0,0,0,rD_0]
+        else:
+            v1_0 = vac1.iloc[sl1] - v2_0
+            if rec:
+                _,_, theta1,theta2 = kargs['params']
+                v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
+                v2_0,im2 = [v2_0*(1-theta2), v2_0*theta2]
+                val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0,im1,im2]
+            else:
+                val_0 = [s_0,v1_0,v2_0,i_0,0,0,rC_0,0,0,rD_0]
+    else:
+        v1_0 = vac1.iloc[sl1]
+        if intermed:
+            vi1 = vac1.iloc[sl1-20]
+            v1 = v1_0 - vi1
+            if rec:
+                _,theta1,_ = kargs['params']
+                v1,im1 = [v1*(1-theta1), v1*theta1]
+                val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0,im1]
+            else:
+                val_0 = [s_0,vi1,v1,i_0,0,rC_0,0,rD_0]
+        else:
+            if rec:
+                _,theta1 = kargs['params']
+                v1_0,im1 = [v1_0*(1-theta1), v1_0*theta1]
+                val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0,im1]
+            else:
+                val_0 = [s_0,v1_0,i_0,0,rC_0,0,rD_0]
+
+
     learner = SIRD_NN.Learner_Geral(region, model, d,False, *val_0, **kargs)
     learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl], data_pp[sl1:sl], v1_only[sl1:sl], vac2[sl1:sl])
     
@@ -224,20 +217,7 @@ def calc_vacRate(vac):
     return vacR
 
 
-def get_from_sheets(sheet_page = 'Data_subregions', sheets='dados'):
-    scope = ['https://spreadsheets.google.com/feeds',
-             'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
-    client = gspread.authorize(creds)
 
-
-    sheet =  client.open(sheets)
-    d = sheet.worksheet(sheet_page)
-    df = pd.DataFrame(d.get_all_records())
-    if 'Data' in df.columns:
-        df.loc[:,'Data'] = pd.to_datetime(df.Data)
-        df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
-    return df
 
 def atualiza_dados(sheet_page = 'Data_subregions', pasta=None, dataset='dados'):
     scope = ['https://spreadsheets.google.com/feeds',
@@ -245,22 +225,19 @@ def atualiza_dados(sheet_page = 'Data_subregions', pasta=None, dataset='dados'):
     creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
     client = gspread.authorize(creds)
 
-<<<<<<< HEAD
-    sheet =  client.open(dataset)
-    d = sheet.worksheet(sheet_page)
-=======
+
 
     sheet =  client.open(dataset)
->>>>>>> d686648968bafab1025d7c62837d94edeb26b205
     d = sheet.worksheet(sheet_page)
     df = pd.DataFrame(d.get_all_records())
     if 'Data' in df.columns:
         df.loc[:,'Data'] = pd.to_datetime(df.Data)
         df.loc[:,'Data'] = df['Data'].dt.strftime('%m/%d/%Y')
     if pasta is not None:
-        df.to_csv(f"{pasta}/{dataset} - {sheet_page}.csv")
+        df.to_csv(f"{pasta}/dados - {sheet_page}.csv")
     else:
-        df.to_csv(f"data/{dataset} - {sheet_page}.csv")
+        df.to_csv(f"data/dados - {sheet_page}.csv")
+
 
 def translate(r):
         translator = {
@@ -420,7 +397,7 @@ def run_mae(df_d, df_p):
 
 
 def ERROR_DF(df_data, df_p, r, cols_p = ['Infected', 'Recovered', 'Death'],
-             cols_d=["At", 'Rt', "Óbitos"],prev = True, error = run_mape): 
+             cols_d=["At", 'Rt', "Óbitos", 'Data'],prev = True, error = run_mape): 
     dc = pd.read_csv(f'data/dados - Agrupamento.csv')
     df_d = get_data(df_data,r,is_pred = False)
 
@@ -431,7 +408,7 @@ def ERROR_DF(df_data, df_p, r, cols_p = ['Infected', 'Recovered', 'Death'],
         df_p = df_p[df_p['Used in Train']]
         
     
-    
+
     idx = df_p['Data']
     df_p = df_p.set_index(df_p['Data'])
     df_d = df_d.set_index(df_d['Data'])
@@ -442,26 +419,33 @@ def ERROR_DF(df_data, df_p, r, cols_p = ['Infected', 'Recovered', 'Death'],
     
     
     
-    df_d['Total'] = df_d[cols_d].sum(axis=1)
+    df_d['Total'] = df_d[cols_d[:-1]].sum(axis=1)
     
     df_p['Total'] = df_p[cols_p].sum(axis=1)
+    print(df_d)
+    print(df_p)
     l = len(df_d)
     df_d = df_d.set_index(np.arange(l))
     df_p = df_p.set_index(np.arange(l))
-    result = list()
-    for i,c in enumerate(cols_p):
-        result.append(error(df_d[cols_d[i]], df_p[c]))
-    result.append( error(df_d['Total'], df_p['Total']))
-    return result
+    
+    er_I = error(df_d[cols_d[0]], df_p[cols_p[0]])
+    er_R = error(df_d[cols_d[1]], df_p[cols_p[1]])
+    er_D = error(df_d[cols_d[2]], df_p[cols_p[2]])
+    er_T = error(df_d['Total'], df_p['Total'])
+    return er_I, er_R, er_D,er_T
 
 def MAPE(arq_data, arq_prev, file = 'MAPE.csv', total = False, save = False, MM = False, is_weekly=False):
-    df_data = arq_data
-    df_prev = arq_prev
+    if arq_data != 'JHU':
+        df_data = pd.read_csv(arq_data, index_col = False)
+    df_prev = pd.read_csv(arq_prev)
+    
     df_save = pd.DataFrame(columns = ["SP-Subregião", 'MAPE Infectados', 'MAPE Óbitos', 'MAPE  Recuperados'])
     for r in df_prev["SP-Subregião"].unique():
         df_p = df_prev[df_prev["SP-Subregião"] == r]
-        df_d = get_data(df_data,r,is_pred = False)
-
+        if arq_data != 'JHU':
+            df_d = get_data(df_data,r,is_pred = False)
+        else:
+            df_d = read_global(r)
         if total:
             df_p = df_p[df_p['Used in Train']]
         else:
@@ -936,6 +920,7 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         if regs is None:
             regs = ['Brasil', 'Norte', 'Nordeste', 'Sul', 'Sudeste', 'Centro-Oeste']
     elif case == 'subregion':
+
         dc = pd.read_csv('data/dados - subregions.csv')
         if pasta is None:
             pasta = f'Run_Semanal/{dtime}'
@@ -1020,9 +1005,9 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         dtime = datetime.strptime(date_str,'%m/%d/%Y')
         pred_day = dtime.strftime('%Y-%b-%d')+save_sufix
         print(pred_day)
-        if case == 'state' or case == 'BR-dataset':
+        if case == 'state':
             dir_res = f'Val-Results-states/{pred_day}/{dia_ini}-{dia_fim}'
-        elif case == 'subregion' or case == 'SP-dataset':
+        elif case == 'subregion':
             dir_res = f'Val-Results/{pred_day}/{dia_ini}-{dia_fim}' 
         elif case == 'city':
             dir_res = f'Val-Results-City/{pred_day}/{dia_ini}-{dia_fim}' 
@@ -1042,9 +1027,9 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         date_str = df_geral[df_geral['Used in Train']]['Data'].iloc[-1]
         dtime = datetime.strptime(date_str,'%m/%d/%Y')
         pred_day = dtime.strftime('%Y-%b-%d')
-        if case == 'state' or case == 'BR-dataset':
+        if case == 'state':
             dir_res = f'Val-Results-states/{pred_day}/{dia_ini}-{dia_fim}'
-        elif case == 'subregion' or case == 'SP-dataset':
+        elif case == 'subregion':
             dir_res = f'Val-Results/{pred_day}/{dia_ini}-{dia_fim}'
         elif case == 'city':
             dir_res = f'Val-Results-City/{pred_day}/{dia_ini}-{dia_fim}' 
@@ -1054,35 +1039,31 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         if MM:
             dir_res = dir_res + '/MM'
     df_att = pd.DataFrame()
-    if gen_graphs:
-        for r in regs:
-            print(r)
-            df_geral_t = pd.read_csv(f'{dir_res}/pred_all.csv',index_col = 0)
-            df_geral_min = pd.read_csv(f'{dir_res}/pred_all_min.csv',index_col = 0)
-            df_geral_max = pd.read_csv(f'{dir_res}/pred_all_max.csv',index_col = 0)
+    for r in regs:
+        print(r)
+        df_geral_t = pd.read_csv(f'{dir_res}/pred_all.csv',index_col = 0)
+        df_geral_min = pd.read_csv(f'{dir_res}/pred_all_min.csv',index_col = 0)
+        df_geral_max = pd.read_csv(f'{dir_res}/pred_all_max.csv',index_col = 0)
+        
+
             
-
-                
-            df_plt = get_data(df_geral_t,r)
-            df_plt_min = get_data(df_geral_min,r)
-            df_plt_max = get_data(df_geral_max,r)
-            df_data = get_data(data_cpy, r) 
-            if is_weekly:
-                df_data = turn_weekly(df_data)
-                df_data['SP-Subregião']=r
-            if MM:
-                date_cpy = df_data['Data']
-                df_data = movingAvg(df_data, 7, ['At', 'Rt','Confirmados','Óbitos'])
-                df_data['SP-Subregião']=r
-                df_data['Data'] = date_cpy
-            if len(df_plt) == 0:
-                continue
-            if rerun:
-                plot(df_data, df_plt,r,dir_res,'Graficos-att_rerun',fs = 24)
-                plot(df_data, df_plt_min,r,dir_res,'Graficos-min_rerun',fs = 24)
-                plot(df_data, df_plt_max,r,dir_res,'Graficos-max_rerun',fs = 24)
-            else:   
-                plot(df_data, df_plt,r,dir_res,'Graficos-att',fs = 24)
-                plot(df_data, df_plt_min,r,dir_res,'Graficos-min',fs = 24)
-                plot(df_data, df_plt_max,r,dir_res,'Graficos-max',fs = 24)
-
+        df_plt = get_data(df_geral_t,r)
+        df_plt_min = get_data(df_geral_min,r)
+        df_plt_max = get_data(df_geral_max,r)
+        df_data = get_data(data_cpy, r) 
+        if is_weekly:
+            df_data = turn_weekly(df_data)
+            df_data['SP-Subregião']=r
+        
+        if len(df_plt) == 0:
+            continue
+        if rerun:
+            plot(df_data, df_plt,r,dir_res,'Graficos-att_rerun',fs = 24)
+            plot(df_data, df_plt_min,r,dir_res,'Graficos-min_rerun',fs = 24)
+            plot(df_data, df_plt_max,r,dir_res,'Graficos-max_rerun',fs = 24)
+        else:   
+            plot(df_data, df_plt,r,dir_res,'Graficos-att',fs = 24)
+            plot(df_data, df_plt_min,r,dir_res,'Graficos-min',fs = 24)
+            plot(df_data, df_plt_max,r,dir_res,'Graficos-max',fs = 24)
+        df_att = df_att.append(df_geral_t[df_geral_t['SP-Subregião'] == r].iloc[:40])
+    df_att.to_csv(f'{dir_res}/pred_att.csv')

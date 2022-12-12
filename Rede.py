@@ -16,8 +16,7 @@ class Rede(object):
                 "Sigmoid": Sigmoid,
                 "Linear": Linear,
                 "Relu": Relu,
-                "Relu_min": Relu_min,
-                "Tanh":Tanh
+                "Relu_min": Relu_min
             }
 
             activation = dct[activation]
@@ -86,9 +85,9 @@ class Layer(object):
         
     def run(self, x):
         if self.has_bias:
-            H =  self.activation(np.matmul(x, self.weights) + self.bias)
+            H =  self.activation(np.dot(x, self.weights) + self.bias)
         else:
-            H =  self.activation(np.matmul(x, self.weights))
+            H =  self.activation(np.dot(x, self.weights))
         return (H)
 
 
@@ -131,6 +130,3 @@ def Relu_min(x):
 
 def Linear(x):
     return x
-
-def Tanh(x):
-    return np.tanh(x)

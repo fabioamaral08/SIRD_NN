@@ -2,11 +2,11 @@ from SIRD_NN import Models as Mod
 from datetime import datetime
 
 class Teste(object):
-    def __init__(self, regions, is_vac, is_mm, date, effs=[0,0], annotation='', is_dose = True, is_intermed = True, is_rec=False, train_rate=False,pasta = None):
+    def __init__(self, regions, is_vac, is_mm, date, effs=[0,0], annotation='', is_dose = True, is_intermed = True, is_rec=False, train_rate=False):
         self.is_vac = is_vac
         self.is_mm = is_mm
         self.regions = regions
-        self.date = date if date is not None else datetime.today().strftime('%m/%d/%Y')
+        self.date = date
         self.effs = effs
         self.train_rate = train_rate
 
@@ -21,17 +21,14 @@ class Teste(object):
             self.dtime = regions[0] + self.sufixo
         else:
             self.dtime = self.sufixo
-        if date is not None:
-            d = datetime.strptime(date, '%m/%d/%Y')
-            d_str = d.strftime('%Y-%b-%d')
+        d = datetime.strptime(date, '%m/%d/%Y')
+        d_str = d.strftime('%Y-%b-%d')
 
-            self.dtime += d_str
-        else:
-             self.dtime = datetime.today().strftime("%y-%m-%d")
+        self.dtime += d_str
         if is_mm:
             self.sufixo += '-MM'
             self.dtime += '-MM'
-        self.pasta = pasta if pasta is not None else f'Run_Teste/{self.dtime}'
+        self.pasta = pasta = f'Run_Teste/{self.dtime}'
 
         self.is_dose = is_dose
         self.is_intermed = is_intermed
