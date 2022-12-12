@@ -74,9 +74,24 @@ class Model(metaclass=abc.ABCMeta):
             l = 0
             for i,d in enumerate(model_vars):
                 if d is not None:
+<<<<<<< HEAD
+                    do_n, di_n = normalize_out( data[i][t], d)
+                    # print(do_n)
+                    # print()
+                    # print(di_n)
+                    # print()
+                    # print()
+                    # l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
+                    # l += np.sqrt(np.mean(((d - data[i][t].astype('float32') )/data[i][t].astype('float32') ) ** 2))
+                    l += np.mean( (di_n - do_n )**2) 
+            # l += np.mean(np.log(np.sum(y,axis=0)**2)) +  .5* np.linalg.norm(params)**2
+            l += np.mean((1 - np.sum(y,axis=0))**2) + np.linalg.norm(params)**2
+            # print(l)
+=======
                     # l += (np.mean(((np.log(d*nf +1) - np.log(data[i][t].astype('float32') * nf + 1 ) )) ** 2))
                     l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
 
+>>>>>>> d686648968bafab1025d7c62837d94edeb26b205
 
         except Exception as e: 
             print(str(e))
