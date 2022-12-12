@@ -44,6 +44,13 @@ class Model(metaclass=abc.ABCMeta):
             net: Rede()
                 Object to run the ANN for evaluate beta(t)
         """
+        def normalize_out(v1,v2, eps = 1e-5):
+                var = np.var(v1)
+                e = np.mean(v1)
+
+                v1_n = (v1 - e)/np.sqrt(var + eps)
+                v2_n = (v2 - e)/np.sqrt(var + eps)
+                return v1_n, v2_n
         
         size = len(data[0])
         solution = solve_ivp(self.model, [0, size], self.val_0,
@@ -64,8 +71,15 @@ class Model(metaclass=abc.ABCMeta):
             for i,d in enumerate(model_vars):
                 if d is not None:
                     l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
-            l += np.mean(np.log(np.sum(y,axis=0)**2))
 
+                    # do_n, di_n = normalize_out( data[i][t], d)
+                    # # l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
+                    # # l += np.sqrt(np.mean(((d - data[i][t].astype('float32') )/data[i][t].astype('float32') ) ** 2))
+                    # l += np.mean( (di_n - do_n )**2) 
+            # l += np.mean(np.log(np.sum(y,axis=0)**2)) +  .5* np.linalg.norm(params)**2
+            l += np.mean(np.log(np.sum(y,axis=0)**2))
+            # l += np.mean((1 - np.sum(y,axis=0))**2) + np.linalg.norm(params)**2 ## NORMALIZED OUT
+            # print(l)
 
         except Exception as e: 
             print(str(e))
@@ -98,7 +112,7 @@ class SIRD(Model):
         t = sol.t
         betas = net.run(t)
         betas = np.array(betas).flatten()
-        S = sol.y[0]
+        S = 1 -  np.sum(sol.y[1:],axis=0).flatten()
         rt = betas/(gamma + gammaD) * S
         return rt
     
@@ -135,7 +149,7 @@ class SIRD(Model):
 class SIR(Model):
     def __init__(self, val_0):
         cols = ['Susceptible', 'Infected', 'Recovered']
-        super().__init__(val_0, cols)
+        super().__init__( val_0, cols)
 
     
     def get_infected(self, y):
@@ -169,7 +183,7 @@ class SIR(Model):
     
     def model(self, t,y, param_calibration, net, other_param=None):
         #Parameters
-        gamma_r = param_calibration[-1]
+        gamma_r = param_calibration[-1:]
         
         n = net.get_num_param()
         net.set_weights(param_calibration[:n])

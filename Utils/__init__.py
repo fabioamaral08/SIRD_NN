@@ -12,7 +12,7 @@ from datetime import timedelta, datetime
 from scipy.stats.mstats import hmean, gmean
 
 def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
-                is_SIR=False, model=Mod.SIRD, is_semanal=False):
+                min_casos=0, is_SIR=False, model=Mod.SIRD, is_semanal=False):
     """
         region: str
             Name of the region/counry/city
@@ -75,14 +75,9 @@ def run_region(region, sl1, sl, dc, dt, step=14, mAvg=False,
         val_0 = [s_0, i_0, rC_0 + rD_0]
     else:
         val_0 = [s_0, i_0, rC_0, rD_0]
-    learner = SIRD_NN.Learner_Geral(region, model, d,is_semanal, *val_0, params=[], is_SIR =is_SIR)
+    learner = SIRD_NN.Learner_Geral(region, model, d,is_semanal, *val_0, params=[])
     # recovered, death, inf,vac1, vac2,
-    if is_SIR:
-        # rec_data = 
-        learner.train(recovered_pp[sl1:sl]+death_pp[sl1:sl],0,
-                  data_pp[sl1:sl], 0, 0)
-    else:
-        learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
+    learner.train(recovered_pp[sl1:sl], death_pp[sl1:sl],
                   data_pp[sl1:sl], 0, 0)
     df_save = learner.save_results(data_pp[sl1:sl])
     return learner, df_save
@@ -225,8 +220,6 @@ def atualiza_dados(sheet_page = 'Data_subregions', pasta=None, dataset='dados'):
     creds = ServiceAccountCredentials.from_json_keyfile_name('data/cred-sir.json',scope)
     client = gspread.authorize(creds)
 
-
-
     sheet =  client.open(dataset)
     d = sheet.worksheet(sheet_page)
     df = pd.DataFrame(d.get_all_records())
@@ -345,8 +338,6 @@ def get_data(df_data,r, is_pred = True):
     return df_d
 
 def sort_data(df, col = 'Data'):
-    if df.index.name == col:
-        df.index.name = f'{col}_index'
     df.loc[:,col] = pd.to_datetime(df[col])
     df.sort_values(by=col, inplace=True, ascending=True)
     df.loc[:,col] = df[col].dt.strftime('%m/%d/%Y')
@@ -474,7 +465,7 @@ def cluster(region,prev,pasta, lim = None,coef_I = 1, coef_D = 0, coef_R = 0, pe
     else:
         file_mape = f'{pasta}/{region}/MAPE_Real-{region}.csv'
     MAPES = pd.read_csv(file_mape,index_col = 0)
-    result = list()
+    
     grupos = {}
     if lim is None:
         lim_I = (np.max(MAPES['MAPE Infectados']) - np.min(MAPES['MAPE Infectados'])) * percent + np.min(MAPES['MAPE Infectados'])
@@ -492,18 +483,12 @@ def cluster(region,prev,pasta, lim = None,coef_I = 1, coef_D = 0, coef_R = 0, pe
         if Inf < lim and Rec < lim and Dea < lim:
 #         if metrica < lim:
             g = 0
-            result.append('Passed')
         else:
             g = 1
-            result.append('Discarded')
         grupos[f'{Dia}'] = g
-    MAPES['Result'] = result
-    MAPES.to_csv(file_mape)
     return grupos
 
-def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1, coef_D = 1, coef_R = 1, 
-                    lim = None,return_total = False, dir_sufix=None, recalc_rt=False):
-
+def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1, coef_D = 1, coef_R = 1, lim = None,return_total = False, dir_sufix=None):
     g = cluster(region,prev, coef_I = coef_I, coef_D = coef_D, coef_R = coef_R, lim = lim, pasta = pasta)
     df_g1 = pd.DataFrame()   
     df_data = pd.read_csv("data\\dados - Data_subregions.csv")
@@ -534,41 +519,36 @@ def filter_results(region, dia_ini, dia_fim, prev, pasta, inner_dir, coef_I = 1,
     df_max = df_g1.groupby('Data', as_index=False).max()
     
     # df_mean.insert(1,'SP-Subregião', region)
-    if recalc_rt:
-        df_mean['Rt'] = df_mean['beta(t)']/(df_mean['Gamma_Rec']+df_mean['Gamma_Death']) * df_mean['Susceptible']/df_mean[['Susceptible','Infected','Recovered','Death']].sum(axis=1)
-        df_min['Rt'] = df_min['beta(t)']/(df_min['Gamma_Rec']+df_min['Gamma_Death']) * df_min['Susceptible']/df_min[['Susceptible','Infected','Recovered','Death']].sum(axis=1)
-        df_max['Rt'] = df_max['beta(t)']/(df_max['Gamma_Rec']+df_max['Gamma_Death']) * df_max['Susceptible']/df_max[['Susceptible','Infected','Recovered','Death']].sum(axis=1)
 
     return df_mean,df_min,df_max
 
 def unifica(dia_ini, dia_fim, prev, region, pasta, df_data, inner_dir = False, df_geral = None,
-            crop = 10, MM = False, dir_sufix=None,is_weekly=False, reuse = False,recalc_rt=False):
+            crop = 10, MM = False, dir_sufix=None,is_weekly=False):
     
     df_MAPE = pd.DataFrame()
     
-    if not os.path.exists(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv') or not reuse:
-        for dLen in range(dia_ini,dia_fim+1):
-            if inner_dir:
-                if dir_sufix is None:
-                    file2 = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
-                else:
-                    file2 = f'{pasta}/{region}/{dir_sufix}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
-            else:        
-                file2 = f'{pasta}/{region}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
-            if not os.path.exists(file2):
-                df_MAPE1 = pd.DataFrame({'SP-Subregião':f'{region}',
-                                        'MAPE Infectados':100.0,
-                                        'MAPE Óbitos':100.0,
-                                        'MAPE Recuperados':100.0}, index = [dLen])
-                print(f'{file2} - does not exist')
-            else:       
-                df_prev = pd.read_csv(file2)
-                df_MAPE1 = MAPE(df_data, df_prev,total = True,MM=MM,is_weekly=is_weekly)
-                df_MAPE1 = df_MAPE1.set_index(pd.Index([dLen]))
-        
-            df_MAPE = df_MAPE.append(df_MAPE1)
-        df_MAPE.to_csv(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv')
-    df_pred,df_pred_min, df_pred_max  = filter_results(region,dia_ini,dia_fim, prev, pasta, inner_dir, lim = 50, dir_sufix=dir_sufix,recalc_rt=recalc_rt)
+    for dLen in range(dia_ini,dia_fim+1):
+        if inner_dir:
+            if dir_sufix is None:
+                file2 = f'{pasta}/{region}/prev-{prev}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+            else:
+                file2 = f'{pasta}/{region}/{dir_sufix}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+        else:        
+            file2 = f'{pasta}/{region}/Subregions_Pred_{dLen}D_prev-{prev}-{region}.csv'
+        if not os.path.exists(file2):
+            df_MAPE1 = pd.DataFrame({'SP-Subregião':f'{region}',
+                                     'MAPE Infectados':100.0,
+                                     'MAPE Óbitos':100.0,
+                                     'MAPE Recuperados':100.0}, index = [dLen])
+            print(f'{file2} - does not exist')
+        else:       
+            df_prev = pd.read_csv(file2)
+            df_MAPE1 = MAPE(df_data, df_prev,total = True,MM=MM,is_weekly=is_weekly)
+            df_MAPE1 = df_MAPE1.set_index(pd.Index([dLen]))
+    
+        df_MAPE = df_MAPE.append(df_MAPE1)
+    df_MAPE.to_csv(f'{pasta}/{region}/MAPE_Total-{region}-Prev{prev}.csv')
+    df_pred,df_pred_min, df_pred_max  = filter_results(region,dia_ini,dia_fim, prev, pasta, inner_dir, lim = 50, dir_sufix=dir_sufix)
     
     df_pred = df_pred.drop('Unnamed: 0', axis=1,errors ='ignore')
     df_pred = df_pred.round({'Infected':0, 'Recovered':0, 'Death':0})
@@ -897,20 +877,9 @@ def turn_weekly(df, period='W'):
     
     return df
 
-def get_SP_data():
-    file_d = f'data/Dataset SP - SP_Data.csv'
-    df_data = pd.read_csv(file_d, index_col = False)
-    df_data.set_index(df_data['Data'], inplace=True)
-    df_data = df_data.rename(columns={'Vacinados 1':'Vac 1', 'Vacinados 2':'Vac 2', 'Recuperados': 'Rt'}).fillna(0)
-    df_data['At'] = df_data['Confirmados'] - df_data[['Rt', 'Óbitos']].sum(axis=1)
-    df_data['SP-Subregião'] = 'São Paulo (Estado)'
-
-    return df_data
-
 def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = False,
                 dia_ini = 10, dia_fim = 30, rerun = False,save_sufix='',
-                pasta=None, inner_dir=False, is_SIR=False, dir_sufix=None, is_weekly=False, gen_graphs = True, reuse = False,
-                recalc_rt=False):
+                pasta=None, inner_dir=False, is_SIR=False, dir_sufix=None, is_weekly=False, gen_graphs = True):
     if case == 'state':
         if pasta is None:
             pasta = f'Run_States/{dtime}'
@@ -927,8 +896,7 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         file_d = f'data/dados - Data_subregions.csv'
         df_data = pd.read_csv(file_d, index_col = False)
         if regs is  None:
-            regs = df_data['SP-Subregião'].unique().tolist() 
-        df_data = df_data.append(get_SP_data())
+            regs = df_data['SP-Subregião'].unique().tolist() + ['São Paulo (Estado)']
     elif case == 'city':
         dc = pd.read_csv('data/dados - Cidades.csv')
         if pasta is None:
@@ -951,7 +919,12 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
         dc = pd.read_csv('data/dados - subregions.csv')
         if pasta is None:
             pasta = f'Run_Semanal/{dtime}'
-        df_data = get_SP_data()
+        file_d = f'data/Dataset SP - SP_Data.csv'
+        df_data = pd.read_csv(file_d, index_col = False)
+        df_data = df_data.rename(columns={'Vacinados 1':'Vac 1', 'Vacinados 2':'Vac 2', 'Recuperados': 'Rt'}).fillna(0)
+        df_data['At'] = df_data['Confirmados'] - df_data[['Rt', 'Óbitos']].sum(axis=1)
+        df_data.set_index(df_data['Data'], inplace=True)
+        df_data['SP-Subregião'] = 'São Paulo (Estado)'
         if regs is  None:
             regs = ['São Paulo (Estado)']
     elif case == 'BR-dataset':
@@ -988,7 +961,7 @@ def run_unifica(dtime,case, prev=0,regs = None, unify = True, crop = 10, MM = Fa
     if unify:
         for r in regs:
             [df_,df_min,df_max] = unifica(dia_ini, dia_fim,prev, r, pasta = pasta,df_geral = None, crop = crop,
-                               inner_dir = inner_dir, df_data=df_data, MM = MM, dir_sufix=dir_sufix,is_weekly=is_weekly,reuse=reuse,recalc_rt=recalc_rt)
+                               inner_dir = inner_dir, df_data=df_data, MM = MM, dir_sufix=dir_sufix,is_weekly=is_weekly)
             
             if rerun:
                 df_ = run_ivp(df_,r,dc)

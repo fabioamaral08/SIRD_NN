@@ -132,8 +132,7 @@ dmypy.json
 .pyre/
 
 # Sensitive data
-.ssh/**
-__pycache__/**
+.ssh/
 
 # Bkup
 run_testes.py
