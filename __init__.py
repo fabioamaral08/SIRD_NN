@@ -31,14 +31,10 @@ class Learner_Geral(object):
         # self.net_beta.add_lay(num_in = 10, num_out = 10,bias = True, activation='Sigmoid')
         self.net_beta.add_lay(num_out = 1,bias = False, activation='Sigmoid')
 
-<<<<<<< HEAD
-        self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 17, .0005]).reshape(-1, )])
-=======
         if 'is_SIR' in kargs.keys() and kargs['is_SIR']:
             self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 14]).reshape(-1, )])
         else:
             self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 14, .001]).reshape(-1, )])
->>>>>>> d686648968bafab1025d7c62837d94edeb26b205
         self.other_param = kargs['params']
         if 'param_calibration' in kargs.keys():
             pc = kargs['param_calibration']
