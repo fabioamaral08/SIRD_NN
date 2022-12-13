@@ -70,14 +70,13 @@ class Model(metaclass=abc.ABCMeta):
             l = 0
             for i,d in enumerate(model_vars):
                 if d is not None:
-                    l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
+                    # l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')))) ** 2))
 
-                    # do_n, di_n = normalize_out( data[i][t], d)
-                    # # l += (np.mean(((np.log(d) - np.log(data[i][t].astype('float32')) )) ** 2))
-                    # # l += np.sqrt(np.mean(((d - data[i][t].astype('float32') )/data[i][t].astype('float32') ) ** 2))
-                    # l += np.mean( (di_n - do_n )**2) 
-            # l += np.mean(np.log(np.sum(y,axis=0)**2)) +  .5* np.linalg.norm(params)**2
-            l += np.mean(np.log(np.sum(y,axis=0)**2))
+                    do_n, di_n = normalize_out( data[i][t], d)
+                    l += np.mean( (di_n - do_n )**2) 
+                    # l += np.sqrt(np.mean(((d - data[i][t].astype('float32') )/data[i][t].astype('float32') ) ** 2))
+            l += np.mean(np.log(np.sum(y,axis=0))**2) +  .5* np.linalg.norm(params)**2
+            # l += np.mean(np.log(np.sum(y,axis=0))**2)
             # l += np.mean((1 - np.sum(y,axis=0))**2) + np.linalg.norm(params)**2 ## NORMALIZED OUT
             # print(l)
 

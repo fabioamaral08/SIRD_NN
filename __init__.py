@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from datetime import timedelta, datetime
 import SIRD_NN.Rede as Rede
 import SIRD_NN.Models as Mod
@@ -27,11 +27,14 @@ class Learner_Geral(object):
         # Parameters creation
         #Beta
         self.net_beta = Rede.Rede()
-        self.net_beta.add_lay(num_in = 1, num_out = 10,bias = True, activation='Relu_min')
+        self.net_beta.add_lay(num_in = 1, num_out = 10,bias = True, activation='Sigmoid')
         # self.net_beta.add_lay(num_in = 10, num_out = 10,bias = True, activation='Sigmoid')
         self.net_beta.add_lay(num_out = 1,bias = False, activation='Relu_min')
 
-        self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1 / 17, .0005]).reshape(-1, )])
+        if 'is_SIR' in kargs.keys() and kargs['is_SIR']:
+            self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1/17]).reshape(-1, )])
+        else:
+            self.params_calibration = np.concatenate([self.net_beta.get_weights(), np.array([1/17, .001]).reshape(-1, )])
         self.other_param = kargs['params']
         if 'param_calibration' in kargs.keys():
             pc = kargs['param_calibration']
@@ -60,10 +63,10 @@ class Learner_Geral(object):
 
     def predict(self, data, val_0):
         new_index = self.extend_index(data.index, self.predict_range)
+        
         size = len(new_index)
-
         IVP = solve_ivp(self.model.model, [0, size], val_0,
-                        t_eval=np.arange(0, size, 1), vectorized=True, method='LSODA', args = (self.params_calibration, self.net_beta, self.other_param))
+                        t_eval=np.arange(0,size,1), vectorized=True, method='LSODA', args = (self.params_calibration, self.net_beta, self.other_param))
 
         return new_index, IVP
 
@@ -75,6 +78,12 @@ class Learner_Geral(object):
         vac2     = vac2/ self.norm_fat
         worked = False
         eps = 1e-9
+        
+        lim_r = (1/21, 1/10)
+        lim_d = (1e-5, .05)
+        n = self.net_beta.get_num_param()
+        m = len(self.params_calibration)
+        b = tuple((-np.inf,np.inf) if i<n else lim_r if i==n else lim_d if i==(n+1) else (1e-5,1) for i in range(m))
         
         while not worked:
             options_lbfgsb={'disp': None, 
@@ -90,7 +99,7 @@ class Learner_Geral(object):
 
             optimalGamma = minimize(self.model.loss, self.params_calibration,
                                     args=([inf, vac1, vac2, recovered, death], self.net_beta, self.other_param),
-                                    method='L-BFGS-B', tol=1e-13, options = options_lbfgsb)
+                                    method='L-BFGS-B', tol=1e-13, options = options_lbfgsb, bounds=b)
 
             
             eps /= 10
@@ -100,8 +109,8 @@ class Learner_Geral(object):
         self.worked = optimalGamma.success
         self.params_calibration = optimalGamma.x
         
-        n = self.net_beta.get_num_param()
         self.net_beta.set_weights(self.params_calibration[:n])
+        # print('Parameters >>>>>',self.params_calibration[:n])
         
 
     def save_results(self, data):
@@ -120,10 +129,14 @@ class Learner_Geral(object):
         df_save['SP-Subregião'] = self.country
         d = self.model.get_params(self.params_calibration, self.other_param)
         
+        inf = self.model.get_infected(y)
+        rec = self.model.get_rec(y)
+        death = self.model.get_death(y)
 
-        df_save['Infected'] = self.model.get_infected(y) * self.norm_fat
-        df_save['Recovered'] = self.model.get_rec(y) * self.norm_fat
-        df_save['Death'] = self.model.get_death(y) * self.norm_fat
+        df_save['Infected'] =  inf* self.norm_fat
+        df_save['Recovered'] = rec * self.norm_fat
+        if death is not None:
+            df_save['Death'] =  death* self.norm_fat
         v1 = self.model.get_vac1(y)
         v2 = self.model.get_vac2(y)
         if v1 is not None:
@@ -135,6 +148,7 @@ class Learner_Geral(object):
         df_save['beta(t)'] = betas
         df_save = pd.concat((df_save,pd.DataFrame(d,index=new_index)),1)
         df_save['Rt'] = self.model.calc_rt(prediction, self.params_calibration, self.other_param, self.net_beta)
+        df_save[df_save['Rt'] >=4]['Rt'] = 4.0
         for i, v in enumerate(y):
             df_save[self.model.cols[i]] = v * self.norm_fat
         df_save['OPTM_Result'] = self.worked
